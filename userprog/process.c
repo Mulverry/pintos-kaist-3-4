@@ -72,7 +72,7 @@ process_create_initd (const char *file_name) {
 static void
 initd (void *f_name) {
 #ifdef VM
-	supplemental_page_table_init (&thread_current ()->spt);
+	supplemental_page_table_init (&thread_current ()->spt_hash);
 #endif
 
 	process_init ();
@@ -167,8 +167,8 @@ __do_fork (void *aux) {
 
 	process_activate (current);
 #ifdef VM
-	supplemental_page_table_init (&current->spt);
-	if (!supplemental_page_table_copy (&current->spt, &parent->spt))
+	supplemental_page_table_init (&current->spt_hash);
+	if (!supplemental_page_table_copy (&current->spt_hash, &parent->spt_hash))
 		goto error;
 #else
 	if (!pml4_for_each (parent->pml4, duplicate_pte, parent))
@@ -376,7 +376,7 @@ process_cleanup (void) {
 	struct thread *curr = thread_current ();
 
 #ifdef VM
-	supplemental_page_table_kill (&curr->spt);
+	supplemental_page_table_kill (&curr->spt_hash);
 #endif
 
 	uint64_t *pml4;
@@ -635,20 +635,15 @@ validate_segment (const struct Phdr *phdr, struct file *file) {
 /* load() helpers. */
 static bool install_page (void *upage, void *kpage, bool writable);
 
-/* Loads a segment starting at offset OFS in FILE at address
- * UPAGE.  In total, READ_BYTES + ZERO_BYTES bytes of virtual
- * memory are initialized, as follows:
- *
- * - READ_BYTES bytes at UPAGE must be read from FILE
- * starting at offset OFS.
- *
- * - ZERO_BYTES bytes at UPAGE + READ_BYTES must be zeroed.
- *
- * The pages initialized by this function must be writable by the
- * user process if WRITABLE is true, read-only otherwise.
- *
- * Return true if successful, false if a memory allocation error
- * or disk read error occurs. */
+/* 주소 UPAGE에서 FILE의 오프셋 OFS부터 시작하는 세그먼트를 로드합니다. 
+다음과 같이 총 READ_BYTES + ZERO_BYTES 바이트의 가상 메모리가 초기화됩니다:
+
+ - 오프셋 OFS에서 시작하는 FILE에서 UPAGE의 READ_BYTES 바이트를 읽어야 합니다.
+ - UPAGE + READ_BYTES에서 ZERO_BYTES 바이트는 0이 되어야 합니다.
+ 
+ 이 함수에 의해 초기화된 페이지는 WRITABLE 이 참이면 사용자 프로세스에서 쓰기 가능해야 하고,
+ 그렇지 않으면 읽기 전용이어야 합니다.
+ 성공하면 true를, 메모리 할당 오류나 디스크 읽기 오류가 발생하면 false를 반환. */
 static bool
 load_segment (struct file *file, off_t ofs, uint8_t *upage,
 		uint32_t read_bytes, uint32_t zero_bytes, bool writable) {
@@ -708,9 +703,8 @@ setup_stack (struct intr_frame *if_) {
 	return success;
 }
 
-/* Adds a mapping from user virtual address UPAGE to kernel
- * virtual address KPAGE to the page table.
- * If WRITABLE is true, the user process may modify the page;
+/* 페이지 테이블에 물리 주소와 가상주소를 맵핑 시켜주는 함수
+ * If WRITABLE is true(1), the user process may modify the page;
  * otherwise, it is read-only.
  * UPAGE must not already be mapped.
  * KPAGE should probably be a page obtained from the user pool
@@ -736,6 +730,13 @@ lazy_load_segment (struct page *page, void *aux) {
 	/* TODO: Load the segment from the file */
 	/* TODO: This called when the first page fault occurs on address VA. */
 	/* TODO: VA is available when calling this function. */
+	struct segment *seg = (struct segment *)aux;
+	if (file_read_at(seg->file_, page->va, seg->read_bytes, seg->ofs) != (int) seg->read_bytes){
+		return false;
+	} else {
+		memset(page->va + seg->read_bytes, 0, seg->zero_bytes);
+		return true;
+	}
 }
 
 /* Loads a segment starting at offset OFS in FILE at address

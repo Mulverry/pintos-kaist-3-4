@@ -1,4 +1,4 @@
-/* Each thread will read 5MB of anonymous pages
+/* Each thread will read 5MB of ymous pages
  * Lastly, frees the allocated memory. 
  */
 

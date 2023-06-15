@@ -101,8 +101,10 @@ struct thread {
    int64_t wakeup_tick;            // For alarm clock
    int pre_priority;                   // donation 이후 우선순위를 초기화하기 위해 초기 우선순위 값을 저장할 필드
    struct lock *wait_on_lock;          // 해당 쓰레드가 대기하고 있는 lock자료구조의 주소를 저장할 필드
+
    struct list list_donation;          // multiple donation을 고려하기 위한 리스트
    struct list_elem d_elem;           // 해당 리스트를 위한 elem도 추가
+
    struct file **fdt;            // 파일 디스크립터 테이블
    int next_fd;                  // 테이블 중 비어있는 곳 
    struct list child_list;          // 자식 스레드 리스트
@@ -114,6 +116,8 @@ struct thread {
    struct semaphore exit_sema;
    struct semaphore free_sema;
    
+   struct hash *spt_hash;
+
    int exit_flag;                  // 스레드 종료 확인을 위한 플래그
    int load_flag;                  
 
@@ -133,6 +137,7 @@ struct thread {
    /* Owned by thread.c. */
    struct intr_frame tf;               /* Information for switching */
    unsigned magic;                     /* Detects stack overflow. */
+
 };
 
 /* If false (default), use round-robin scheduler.

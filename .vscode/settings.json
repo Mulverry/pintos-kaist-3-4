@@ -1,0 +1,27 @@
+{
+    "files.associations": {
+        "syscall.h": "c",
+        "synch.h": "c",
+        "filesys.h": "c",
+        "file.h": "c",
+        "stdio.h": "c",
+        "process.h": "c",
+        "*.inc": "c",
+        "vaddr.h": "c",
+        "__threading_support": "c",
+        "__config": "c",
+        "locale": "c",
+        "mmu.h": "c",
+        "array": "c",
+        "memory": "c",
+        "functional": "c",
+        "tuple": "c",
+        "utility": "c",
+        "hash.h": "c",
+        "vm.h": "c",
+        "compare": "c",
+        "type_traits": "c",
+        "uninit.h": "c",
+        "anon.h": "c"
+    }
+}
