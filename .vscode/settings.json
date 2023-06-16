@@ -25,5 +25,6 @@
         "anon.h": "c",
         "thread.h": "c",
         "palloc.h": "c"
-    }
+    },
+    "C_Cpp.errorSquiggles": "disabled"
 }

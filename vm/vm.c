@@ -1,14 +1,15 @@
 /* vm.c: Generic interface for virtual memory objects. */
 
 #include "threads/malloc.h"
+#include "threads/mmu.h"
+#include "threads/vaddr.h"
 #include "vm/vm.h"
 #include "vm/inspect.h"
 #include "kernel/hash.h"
-#include "threads/vaddr.h"
-#include "threads/mmu.h"
+#include "userprog/process.h"
 
-unsigned get_hash_bytes(const struct hash_elem *spt_elem, void *aux UNUSED);
-unsigned less_func(const struct hash_elem *a, const struct hash_elem *b, void *aux);
+uint64_t hash_func(const struct hash_elem *spt_elem, void *aux UNUSED);
+bool less_func(const struct hash_elem *a, const struct hash_elem *b, void *aux);
 
 
 /* Initializes the virtual memory subsystem by invoking each subsystem's
@@ -23,6 +24,7 @@ vm_init (void) {
 	register_inspect_intr ();
 	/* DO NOT MODIFY UPPER LINES. */
 	/* TODO: Your code goes here. */
+	list_init(&frame_list);
 }
 
 /* Get the type of the page. This function is useful if you want to know the
@@ -38,6 +40,20 @@ page_get_type (struct page *page) {
 			return ty;
 	}
 }
+
+/* project 3-----------------------------------------------------*/
+// 페이지의 va를 해쉬화 하는 함수.
+uint64_t hash_func(const struct hash_elem *p_elem, void* aux UNUSED){
+	struct page *p = hash_entry (p_elem, struct page, hash_elem);
+	return hash_bytes(&p->va, sizeof(p->va));
+}
+
+bool less_func(const struct hash_elem *a, const struct hash_elem *b, void* aux){
+	const struct page* p_a = hash_entry(a, struct page, hash_elem);
+	const struct page* p_b = hash_entry(b, struct page, hash_elem);
+	return p_a->va < p_b->va;
+}
+/*---------------------------------------------------------------*/
 
 /* Helpers */
 static struct frame *vm_get_victim (void);
@@ -62,14 +78,16 @@ vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable,
 		/* TODO: 페이지를 생성하고 VM 유형에 따라 이니셜라이저를 가져옵니다,
 	 	/* TODO: 그런 다음 unit_new를 호출하여 "uninit" 페이지 구조를 만듭니다.
 	 	/* TODO: unit_new를 호출한 후 필드를 수정해야 합니다. */
-		// vm type(uninit, anon, file, page_cache)에 따라 initializer를 다르게 가져와야 한다는 뜻일까?
 
-		page = (struct page *)malloc(sizeof(struct page));
+		struct page *page = (struct page*)malloc(sizeof(struct page));
+
 		switch (VM_TYPE(type)){
 			case VM_ANON:
-				uninit_new(page, page->va, init, type, aux, anon_initializer(page, type, aux));
+				uninit_new(page, page->va, init, type, aux, anon_initializer);
+				break;
 			case VM_FILE:
-				uninit_new(page, page->va, init, type, aux, file_backed_initializer(page, type, aux));
+				uninit_new(page, page->va, init, type, aux, file_backed_initializer);
+				break;
 		}
 		page->writable = writable;
 		return spt_insert_page(spt, page);
@@ -86,11 +104,11 @@ spt_find_page (struct supplemental_page_table *spt UNUSED, void *va UNUSED) {
 	struct hash_elem *spt_elem;
 
 	page->va = pg_round_down(va); //페이지 번호 얻기. 해당 페이지의 시작 부분.
-	if (hash_find(&spt->spt, spt_elem == NULL)){
+	if (hash_find(&spt->spt_hash, spt_elem == NULL)){
 		free(page);
 		return NULL;
 	} else {
-		spt_elem = hash_find(&spt->spt, &page->hash_elem); //hash_entry 리턴
+		spt_elem = hash_find(&spt->spt_hash, &page->hash_elem); //hash_entry 리턴
 		free(page);
 		return hash_entry(spt_elem, struct page, hash_elem);
 	}
@@ -166,7 +184,7 @@ vm_evict_frame (void) {
 지금으로서는 페이지 할당이 실패했을 경우의 swap out을 할 필요가 없습니다. */
 static struct frame *
 vm_get_frame (void) {
-	struct frame *frame = palloc_get_page(PAL_ZERO | PAL_USER);
+	struct frame *frame = palloc_get_page(PAL_USER);
 	/* TODO: Fill this function. */
 	/*!!!!중요!!!! -----> 이걸 알아야 코딩 가능.
 	pintos에서 kva는 물리메모리 주소라고 생각하면 편함.
@@ -221,7 +239,6 @@ vm_dealloc_page (struct page *page) {
 가상 주소 va에 해당하는 페이지를 claim */
 bool
 vm_claim_page (void *va UNUSED) {
-	struct page *page = NULL;
 	/* TODO: Fill this function */
 	struct supplemental_page_table *spt = &thread_current()->spt_hash;
 	struct page *page = spt_find_page(spt, va); //주어진 가상 주소에 해당하는 페이지를 보조 페이지 테이블에서 찾음
@@ -251,8 +268,7 @@ vm_do_claim_page (struct page *page) {
 /* Initialize new supplemental page table */
 void
 supplemental_page_table_init (struct supplemental_page_table *spt UNUSED) {
-	hash_init(spt, get_hash_bytes, less_func, NULL);
-	// hash_init(spt->spt, get_hash_bytes, less_func, NULL);
+	hash_init(spt->spt_hash, hash_func, less_func, NULL);
 }
 
 /* Copy supplemental page table from src to dst */
@@ -266,15 +282,5 @@ void
 supplemental_page_table_kill (struct supplemental_page_table *spt UNUSED) {
 	/* TODO: Destroy all the supplemental_page_table hold by thread and
 	 * TODO: writeback all the modified contents to the storage. */
-}
-
-unsigned get_hash_bytes(const struct hash_elem *spt_elem, void *aux UNUSED){
-	const struct page *p= hash_entry(spt_elem, struct page, hash_elem);
-	return hash_bytes(&p->va, sizeof(p->va));
-}
-
-unsigned less_func(const struct hash_elem *a, const struct hash_elem *b, void *aux){
-	const struct page *p_a = hash_entry(a, struct page, hash_elem);
-	const struct page *p_b = hash_entry(b, struct page, hash_elem);
-	return p_a->va < p_b->va;
+	hash_destroy(spt->spt_hash, hash_func);
 }
