@@ -5,6 +5,7 @@
 #include "vm/inspect.h"
 #include "kernel/hash.h"
 #include "threads/vaddr.h"
+#include "threads/mmu.h"
 
 unsigned get_hash_bytes(const struct hash_elem *spt_elem, void *aux UNUSED);
 unsigned less_func(const struct hash_elem *a, const struct hash_elem *b, void *aux);
@@ -118,13 +119,31 @@ spt_remove_page (struct supplemental_page_table *spt, struct page *page) {
 	}
 }
 
-/* Get the struct frame, that will be evicted. */
+/* Get the struct frame, that will be evicted.
+쳐낼 프레임 찾기
+->여기서 페이지 교체 알고리즘을 적용해야하는데 뭘 적용해야할까 하다가
+  linked_list의 LRU기법을 선택하기로함.
+  ->왜 why? frame을 struct list 형태로 선언했기 때문에.(struct list 는 linked-list 형태를 가짐.) */
 static struct frame *
 vm_get_victim (void) {
 	struct frame *victim = NULL;
 	 /* TODO: The policy for eviction is up to you. */
+	struct thread* curr = thread_current();
+	struct list_elem *elem;
 
-	return victim;
+    // frame_list를 순회하면서 가장 최근에 사용되지 않은 frame을 찾음
+    for (elem = list_begin(&frame_list); elem != list_end(&frame_list); elem = list_next(elem)) {
+
+        victim = list_entry(elem, struct frame, frame_elem);
+        // 현재 frame의 PTE가 최근에 접근되었는지 확인
+        if (pml4_is_accessed(curr->pml4, victim->page->va)) { // 해당 frame의 access-bit가 1이라면
+            continue; 
+        } else {
+            return victim;
+        }
+    }
+
+	return victim; // 맞게 구현했는지 모르겠음... 확인 좀 부탁해용 ㅠ
 }
 
 /* Evict one page and return the corresponding frame.
@@ -133,22 +152,37 @@ static struct frame *
 vm_evict_frame (void) {
 	struct frame *victim UNUSED = vm_get_victim ();
 	/* TODO: swap out the victim and return the evicted frame. */
-
-	return NULL;
+	if(swap_out(victim->page)) return victim;
+	else return NULL;
 }
 
 /* palloc() and get frame. If there is no available page, evict the page
  * and return it. This always return valid address. That is, if the user pool
  * memory is full, this function evicts the frame to get the available memory
- * space.*/
+ * space.
+ * palloc_get_page 함수를 호출함으로써 당신의 메모리 풀에서 새로운 물리메모리 페이지를 가져옵니다.
+유저 메모리 풀에서 페이지를 성공적으로 가져오면, 프레임을 할당하고 프레임 구조체의 멤버들을 초기화한 후 해당 프레임을 반환합니다. 
+당신이 frame *vm_get_frame  함수를 구현한 후에는 모든 유저 공간 페이지들을 이 함수를 통해 할당해야 합니다.
+지금으로서는 페이지 할당이 실패했을 경우의 swap out을 할 필요가 없습니다. */
 static struct frame *
 vm_get_frame (void) {
 	struct frame *frame = palloc_get_page(PAL_ZERO | PAL_USER);
 	/* TODO: Fill this function. */
-	//YeonJu:
-	frame->kva = NULL;
+	/*!!!!중요!!!! -----> 이걸 알아야 코딩 가능.
+	pintos에서 kva는 물리메모리 주소라고 생각하면 편함.
+	우선 frame 구조체 안에 kva가 선언이 되있고 pintos에서는 실제 dram이 장착되어서 구동되는게 아니기 때문에.
+	*/
+	if(frame->kva == NULL){ // 쓸 수 있는 물리메모리 공간이 없다면
+		frame = vm_evict_frame();
+		frame->page = NULL; // frame 비워줌(초기화).
+		return frame;
+	}
 
-	ASSERT (frame != NULL); // 물리메모리 X
+	// frame 비워주고 frame_list에 넣어줌.
+	frame->page = NULL; 
+	list_push_back(&frame_list, &frame->frame_elem);
+
+	ASSERT (frame != NULL); // 물리메모리 X 확인
 	ASSERT (frame->page == NULL); // 페이지 테이블 X
 	return frame;
 }
@@ -183,33 +217,42 @@ vm_dealloc_page (struct page *page) {
 	free(page);
 }
 
-/* Claim the page that allocate on VA. */
+/* Claim the page that allocate on VA.
+가상 주소 va에 해당하는 페이지를 claim */
 bool
 vm_claim_page (void *va UNUSED) {
 	struct page *page = NULL;
 	/* TODO: Fill this function */
-
-	return vm_do_claim_page (page);
+	struct supplemental_page_table *spt = &thread_current()->spt_hash;
+	struct page *page = spt_find_page(spt, va); //주어진 가상 주소에 해당하는 페이지를 보조 페이지 테이블에서 찾음
+	
+	if (page == NULL) return false;
+	
+	return vm_do_claim_page (page); // vm_do_claim_page를 호출하여 페이지를 claim하고 mmu를 설정함
 }
 
-/* Claim the PAGE and set up the mmu. */
+/* 페이지를 claim하고 mmu를 설정함. */
 static bool
 vm_do_claim_page (struct page *page) {
-	struct frame *frame = vm_get_frame ();
+	struct frame *frame = vm_get_frame();
 
-	/* Set links */
+	/* Set links 페이지와 프레임을 링크함 */
 	frame->page = page;
 	page->frame = frame;
 
 	/* TODO: Insert page table entry to map page's VA to frame's PA. */
-
-	return swap_in(page, frame->kva);
+	// YeonJu: frame의 pa를 표현할 방법은? kva였음.
+	// Sunghwan: 성공적으로 page가 매핑됐을 경우, 해당 page와 물리메모리 연결.
+	// install_page함수 -> 가상메모리와 물리메모리를 매핑하는 함수.
+	if (install_page(page->va, frame->kva, page->writable)) return swap_in(page, frame->kva);
+	return false;
 }
 
 /* Initialize new supplemental page table */
 void
 supplemental_page_table_init (struct supplemental_page_table *spt UNUSED) {
 	hash_init(spt, get_hash_bytes, less_func, NULL);
+	// hash_init(spt->spt, get_hash_bytes, less_func, NULL);
 }
 
 /* Copy supplemental page table from src to dst */

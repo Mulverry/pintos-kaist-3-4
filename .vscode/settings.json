@@ -22,6 +22,8 @@
         "compare": "c",
         "type_traits": "c",
         "uninit.h": "c",
-        "anon.h": "c"
+        "anon.h": "c",
+        "thread.h": "c",
+        "palloc.h": "c"
     }
 }

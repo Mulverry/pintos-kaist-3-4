@@ -5,7 +5,7 @@ struct page;
 enum vm_type;
 
 struct anon_page {
-    struct page *page;
+    struct page *anon_p;
 };
 
 void vm__init (void);
