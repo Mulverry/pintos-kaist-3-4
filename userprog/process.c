@@ -654,7 +654,7 @@ validate_segment(const struct Phdr *phdr, struct file *file)
  * outside of #ifndef macro. */
 
 /* load() helpers. */
-static bool install_page(void *upage, void *kpage, bool writable);
+// bool install_page(void *upage, void *kpage, bool writable);
 
 /* Loads a segment starting at offset OFS in FILE at address
  * UPAGE.  In total, READ_BYTES + ZERO_BYTES bytes of virtual
@@ -744,8 +744,7 @@ setup_stack(struct intr_frame *if_)
  * with palloc_get_page().
  * Returns true on success, false if UPAGE is already mapped or
  * if memory allocation fails. */
-static bool
-install_page(void *upage, void *kpage, bool writable)
+bool install_page(void *upage, void *kpage, bool writable)
 {
    struct thread *t = thread_current();
 
@@ -757,13 +756,39 @@ install_page(void *upage, void *kpage, bool writable)
 /* From here, codes will be used after project 3.
  * If you want to implement the function for only project 2, implement it on the
  * upper block. */
+// bool install_page(void *upage, void *kpage, bool writable);
+// bool install_page(void *upage, void *kpage, bool writable)
+// {
+//    struct thread *t = thread_current();
 
+//    /* Verify that there's not already a page at that virtual
+//     * address, then map our page there. */
+//    return (pml4_get_page(t->pml4, upage) == NULL && pml4_set_page(t->pml4, upage, kpage, writable));
+// }
 static bool
 lazy_load_segment(struct page *page, void *aux)
 {
    /* TODO: Load the segment from the file */
    /* TODO: This called when the first page fault occurs on address VA. */
    /* TODO: VA is available when calling this function. */
+   struct file *file = ((struct segment *)aux)->file;
+   off_t offset = ((struct segment *)aux)->ofs;
+   size_t read_bytes = ((struct segment *)aux)->read_bytes;
+   size_t size_for_zero = PGSIZE - read_bytes;
+
+   file_seek(file, offset);
+
+   if (file_read(file, page->frame->kva, read_bytes) != (int)read_bytes)
+   {
+      palloc_free_page(page->frame->kva);
+      return false;
+   }
+
+   memset(page->frame->kva + read_bytes, 0, size_for_zero);
+
+   file_seek(file, offset); // offset 초기화
+
+   return true;
 }
 
 /* Loads a segment starting at offset OFS in FILE at address
@@ -788,40 +813,55 @@ load_segment(struct file *file, off_t ofs, uint8_t *upage,
    ASSERT(pg_ofs(upage) == 0);
    ASSERT(ofs % PGSIZE == 0);
 
+   file_seek(file, ofs);
    while (read_bytes > 0 || zero_bytes > 0)
    {
-      /* Do calculate how to fill this page.
-       * We will read PAGE_READ_BYTES bytes from FILE
-       * and zero the final PAGE_ZERO_BYTES bytes. */
+      /* 이 페이지를 채우는 방법을 계산하십시오.
+       * FILE에서 PAGE_READ_BYTS 바이트를 읽습니다
+       * 마지막 PAGE_ZERO_BYTS 바이트를 0으로 설정합니다. */
       size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
       size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
       /* TODO: Set up aux to pass information to the lazy_load_segment. */
-      void *aux = NULL;
+      /* Project3 - Anon Page */
+      struct segment *seg = (struct segment *)malloc(sizeof(struct segment));
+      seg->file = file;
+      seg->ofs = ofs;
+      seg->read_bytes = page_read_bytes;
+
       if (!vm_alloc_page_with_initializer(VM_ANON, upage,
-                                          writable, lazy_load_segment, aux))
+                                          writable, lazy_load_segment, seg))
          return false;
 
       /* Advance. */
       read_bytes -= page_read_bytes;
       zero_bytes -= page_zero_bytes;
       upage += PGSIZE;
+      ofs += page_read_bytes;
    }
    return true;
 }
 
 /* Create a PAGE of stack at the USER_STACK. Return true on success. */
+// Sangju
 static bool
 setup_stack(struct intr_frame *if_)
 {
    bool success = false;
    void *stack_bottom = (void *)(((uint8_t *)USER_STACK) - PGSIZE);
 
-   /* TODO: Map the stack on stack_bottom and claim the page immediately.
-    * TODO: If success, set the rsp accordingly.
-    * TODO: You should mark the page is stack. */
-   /* TODO: Your code goes here */
-
+   /* 할 일: stack_bottom에 스택을 매핑하고 페이지를 즉시 클레임합니다.
+    * 할 일: 성공한 경우 rsp를 적절히 설정합니다.
+    * 할 일: 페이지가 스택임을 표시해야 합니다. */
+   /* 할 일: 코드는 여기에 있습니다 */
+   if (vm_alloc_page(VM_ANON | VM_MARKER_0, stack_bottom, 1))
+   {
+      success = vm_claim_page(stack_bottom);
+      if (success)
+      {
+         if_->rsp = USER_STACK;
+      }
+   }
    return success;
 }
 #endif /* VM */
