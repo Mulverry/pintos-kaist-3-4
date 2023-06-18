@@ -281,11 +281,35 @@ bool less_func(const struct hash_elem *a, const struct hash_elem *b, void *aux)
 	return p_a->va < p_b->va;
 }
 /* Copy supplemental page table from src to dst */
-bool supplemental_page_table_copy(struct supplemental_page_table *dst UNUSED,
-								  struct supplemental_page_table *src UNUSED)
-{
-}
+bool
+supplemental_page_table_copy (struct supplemental_page_table *dst UNUSED,
+      struct supplemental_page_table *src UNUSED) {
+   
+   struct hash_iterater i;
+   hash_first(&i, src->spt_hash); //i 초기화
 
+   while(hash_next(i)){ // next가 있는동안, vm_page_with_initiater 인자참고
+      struct page *parent_page = hash_entry(hash_cur(i), struct page, hash_elem);
+
+      enum vm_type type = page_get_type(&parent_page);
+      void *upage = parent_page->va;
+      bool writable = parent_page->writable;
+      vm_initializer *init = parent_page->uninit.init;
+      void *aux = parent_page->uninit.aux;
+
+      // vm_alloc_page_with_initializer(type, upage, writable, init, aux);
+
+      if (type == VM_UNINIT){ //uninit일 때 뭐하라고?
+         struct page *child_page = vm_alloc_page(type, upage, writable);
+         child_page->va = parent_page->va;
+      } else { //setupstack을 어디서 사용하라는 거야
+         struct page *child_page = vm_alloc_page(type, upage, writable); //
+         memcpy(child_page, parent_page, PGSIZE);
+         child_page->va = parent_page->va;
+      }
+   }
+   return true;
+}
 /* Free the resource hold by the supplemental page table */
 void supplemental_page_table_kill(struct supplemental_page_table *spt UNUSED)
 {
