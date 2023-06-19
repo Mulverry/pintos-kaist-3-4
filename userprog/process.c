@@ -243,6 +243,8 @@ int process_exec(void *f_name)
    /* We first kill the current context */
    process_cleanup();
 
+   supplemental_page_table_init(&cur->spt);
+
    // for argument parsing
    char *parse[64];
    int count = 0;
@@ -316,9 +318,9 @@ int process_add_file(struct file *f)
    struct thread *cur = thread_current();
 
    // 파일 객체(struct file)를 가리키는 포인터를 File Descriptor 테이블에 추가
-   lock_acquire(&filesys_lock);
+   // lock_acquire(&filesys_lock);
    cur->fdt[cur->next_fd] = f;
-   lock_release(&filesys_lock);
+   // lock_release(&filesys_lock);
    // 다음 File Descriptor 값 1 증가
    cur->next_fd++;
    // 추가된 파일 객체의 File Descriptor 반환
@@ -373,11 +375,14 @@ int process_wait(tid_t child_tid UNUSED)
 }
 
 /* Exit the process. This function is called by thread_exit (). */
+/* Exit the process. This function is called by thread_exit (). */
 void process_exit(void)
 {
    struct thread *cur = thread_current();
-   for (int i = 2; i < 64; i++)
+   for (int i = FD_MIN; i < FD_MAX; i++)
       close(i);
+   palloc_free_multiple(cur->fdt, 3);
+   cur->fdt = NULL;
    file_close(cur->running_file);
    sema_up(&cur->exit_sema);
    sema_down(&cur->free_sema);
@@ -847,7 +852,7 @@ load_segment(struct file *file, off_t ofs, uint8_t *upage,
 static bool
 setup_stack(struct intr_frame *if_)
 {
-   bool success = false;
+   bool success;
    void *stack_bottom = (void *)(((uint8_t *)USER_STACK) - PGSIZE);
 
    /* 할 일: stack_bottom에 스택을 매핑하고 페이지를 즉시 클레임합니다.
@@ -860,6 +865,7 @@ setup_stack(struct intr_frame *if_)
       if (success)
       {
          if_->rsp = USER_STACK;
+         // thread_current()->stack_bottom = stack_bottom;
       }
    }
    return success;

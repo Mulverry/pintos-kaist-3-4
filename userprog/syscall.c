@@ -19,7 +19,7 @@
 
 void syscall_entry(void);
 void syscall_handler(struct intr_frame *);
-void check_address(void *addr);
+
 void get_argument(void *rsp, int *arg, int count);
 void halt(void);
 void exit(int status);
@@ -35,7 +35,10 @@ int write(int fd, const void *buffer, unsigned size);
 void seek(int fd, unsigned position);
 unsigned tell(int fd);
 void close(int fd);
-void check_address(void *addr);
+
+void *check_address(void *addr);
+void check_buffer(void *buffer, unsigned size, bool to_write);
+
 int process_add_file(struct file *f);
 struct file *process_get_file(int fd);
 
@@ -70,7 +73,7 @@ void syscall_init(void)
 void syscall_handler(struct intr_frame *f UNUSED)
 {
    // TODO: Your implementation goes here.
-   check_address(f->rsp);
+   // check_address(f->rsp);
    struct thread *cur = thread_current();
    memcpy(&cur->tf, f, sizeof(struct intr_frame));
    int syscall_num = f->R.rax;
@@ -86,6 +89,7 @@ void syscall_handler(struct intr_frame *f UNUSED)
       f->R.rax = fork(f->R.rdi);
       break;
    case SYS_EXEC: /* Switch current process. */
+      check_buffer(f->R.rsi, f->R.rdx, f->rsp);
       f->R.rax = exec(f->R.rdi);
       break;
    case SYS_WAIT: /* Wait for a child process to die. */
@@ -98,6 +102,7 @@ void syscall_handler(struct intr_frame *f UNUSED)
       f->R.rax = remove(f->R.rdi);
       break;
    case SYS_OPEN: /* Open a file. */
+      check_buffer(f->R.rsi, f->R.rdx, f->rsp);
       f->R.rax = open(f->R.rdi);
       break;
    case SYS_FILESIZE: /* Obtain a file's size. */
@@ -107,6 +112,7 @@ void syscall_handler(struct intr_frame *f UNUSED)
       f->R.rax = read(f->R.rdi, f->R.rsi, f->R.rdx);
       break;
    case SYS_WRITE: /* Write to a file. */
+      check_buffer(f->R.rsi, f->R.rdx, f->rsp);
       f->R.rax = write(f->R.rdi, f->R.rsi, f->R.rdx);
       break;
    case SYS_SEEK: /* Change position in a file. */
@@ -242,7 +248,7 @@ buffer 안에 fd 로 열려있는 파일로부터 size 바이트를 읽습니다
 */
 int read(int fd, void *buffer, unsigned size)
 {
-   check_address(buffer);
+   check_buffer(buffer, size, true);
    int file_size;
    char *read_buffer = buffer;
    if (fd == 0)
@@ -347,11 +353,28 @@ void close(int fd)
 주소 값이 유저 영역 주소 값인지 확인
 유저 영역을 벗어난 영역일 경우 프로세스 종료(exit(-1)
 */
-void check_address(void *addr)
+void *check_address(void *addr)
 {
    struct thread *curr = thread_current();
    if (!is_user_vaddr(addr) || is_kernel_vaddr(addr) || pml4_get_page(curr->pml4, addr) == NULL)
    {
       exit(-1);
    }
+   /*addr이 vm_entry에 존재하면 vm_entry를 반환하도록 코드 작성 */
+   /*find_vme() 사용*/
+   struct page *page = spt_find_page(&thread_current()->spt, addr);
+
+   return page;
 }
+void check_buffer(void *buffer, unsigned size, bool to_write)
+{
+   for (int i = 0; i < size; i++)
+   {
+      struct page *page = check_address(buffer + i);
+      if (page == NULL)
+         exit(-1);
+      if (to_write == true && page->writable == false)
+         exit(-1);
+   }
+}
+// check_address, buffer 체크용 만들기
