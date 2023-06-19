@@ -121,7 +121,7 @@ spt_find_page (struct supplemental_page_table *spt UNUSED, void *va UNUSED) {
 bool spt_insert_page (struct supplemental_page_table *spt UNUSED,
 		struct page *page UNUSED) {
 	/* TODO: Fill this function. */
-	if (hash_insert(spt, &page->hash_elem)){
+	if (hash_insert(spt->spt_hash, &page->hash_elem)){
 		return true;
 	}else {
 		return false;
@@ -131,7 +131,7 @@ bool spt_insert_page (struct supplemental_page_table *spt UNUSED,
 void
 spt_remove_page (struct supplemental_page_table *spt, struct page *page) {
 	// vm_dealloc_page (page);
-	if (hash_delete(spt, &page->hash_elem)){
+	if (hash_delete(spt->spt_hash, &page->hash_elem)){
 		return true;
 	} else {
 		return false;
@@ -171,7 +171,7 @@ vm_evict_frame (void) {
 	struct frame *victim UNUSED = vm_get_victim ();
 	/* TODO: swap out the victim and return the evicted frame. */
 	if(swap_out(victim->page)) return victim;
-	else return NULL;
+	// else return NULL;
 }
 
 /* palloc() and get frame. If there is no available page, evict the page
@@ -185,7 +185,7 @@ vm_evict_frame (void) {
 static struct frame *
 vm_get_frame (void) {
 	struct frame *frame = malloc(sizeof(struct frame));
-	frame->kva = palloc_get_page(PAL_USER); //Yeonju: palloc_get_page는 kva 리턴
+	frame->kva = palloc_get_page(PAL_USER); //Sangju 반환받은 주소를 frame 구조체에 할당
 
 	/* TODO: Fill this function. */
 	/*!!!!중요!!!! -----> 이걸 알아야 코딩 가능.
@@ -199,8 +199,8 @@ vm_get_frame (void) {
 	}
 
 	// frame 비워주고 frame_table에 넣어줌.
-	frame->page = NULL; 
 	list_push_back(&frame_table, &frame->frame_elem);
+	frame->page = NULL; 
 
 	ASSERT (frame != NULL); // 물리메모리 X 확인
 	ASSERT (frame->page == NULL); // 페이지 테이블 X
@@ -247,7 +247,7 @@ vm_dealloc_page (struct page *page) {
 bool
 vm_claim_page (void *va UNUSED) {
 	/* TODO: Fill this function */
-	struct supplemental_page_table *spt = &thread_current()->spt_hash;
+	struct supplemental_page_table *spt = &thread_current()->spt;
 	struct page *page = spt_find_page(spt, va); //주어진 가상 주소에 해당하는 페이지를 보조 페이지 테이블에서 찾음
 	
 	if (page == NULL) return false;
