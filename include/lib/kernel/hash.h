@@ -11,7 +11,7 @@
  * 이를 이중으로 연결된 목록 배열에 대한 배열의 인덱스로 사용한 다음
  * 목록을 선형적으로 검색합니다.
  *
- * 체인 목록은 동적 할당을 사용하지 않습니다. 
+ * 체인 목록은 동적 할당을 사용하지 않습니다.(뭔소리임?)
  * 대신, 해시에 포함될 수 있는 각 구조체는 구조체 해시 엘리먼트 멤버를 포함해야 합니다.
  * 모든 해시 함수는 이러한 `구조체 hash_elem`에서 작동합니다.
  * hash_entry 매크로를 사용하면 구조체 hash_elem에서 이를 포함하는 구조체 객체로 다시 변환할 수 있습니다.
@@ -45,9 +45,7 @@ typedef uint64_t hash_hash_func (const struct hash_elem *e, void *aux);
 /* Compares the value of two hash elements A and B, given
  * auxiliary data AUX.  Returns true if A is less than B, or
  * false if A is greater than or equal to B. */
-typedef bool hash_less_func (const struct hash_elem *a,
-		const struct hash_elem *b,
-		void *aux);
+typedef bool hash_less_func (const struct hash_elem *a, const struct hash_elem *b, void *aux);
 
 /* Performs some operation on hash element E, given auxiliary
  * data AUX. */

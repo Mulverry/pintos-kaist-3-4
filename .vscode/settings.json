@@ -24,7 +24,9 @@
         "uninit.h": "c",
         "anon.h": "c",
         "thread.h": "c",
-        "palloc.h": "c"
+        "palloc.h": "c",
+        "memory_resource": "c",
+        "bitmap.h": "c"
     },
     "C_Cpp.errorSquiggles": "disabled"
 }

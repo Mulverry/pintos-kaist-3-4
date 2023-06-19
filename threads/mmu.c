@@ -291,7 +291,11 @@ pml4_set_dirty (uint64_t *pml4, const void *vpage, bool dirty) {
 /* Returns true if the PTE for virtual page VPAGE in PML4 has been
  * accessed recently, that is, between the time the PTE was
  * installed and the last time it was cleared.  Returns false if
- * PML4 contains no PTE for VPAGE. */
+ * PML4 contains no PTE for VPAGE.
+ * PML4의 가상 페이지 VPAGE에 대한 PTE가 최근에
+ * 최근에 액세스된 경우, 즉 PTE가 설치된 시점부터
+ * 마지막으로 지워졌을 때를 true를 반환합니다.
+ * PML4에 VPAGE에 대한 PTE가 없다면 false를 반환. */
 bool
 pml4_is_accessed (uint64_t *pml4, const void *vpage) {
 	uint64_t *pte = pml4e_walk (pml4, (uint64_t) vpage, false);

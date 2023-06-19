@@ -7,10 +7,12 @@
 #include "vm/inspect.h"
 #include "kernel/hash.h"
 #include "userprog/process.h"
+#include <string.h>
+
+struct list frame_table;
 
 uint64_t hash_func(const struct hash_elem *spt_elem, void *aux UNUSED);
 bool less_func(const struct hash_elem *a, const struct hash_elem *b, void *aux);
-
 
 /* Initializes the virtual memory subsystem by invoking each subsystem's
  * intialize codes. */
@@ -24,7 +26,7 @@ vm_init (void) {
 	register_inspect_intr ();
 	/* DO NOT MODIFY UPPER LINES. */
 	/* TODO: Your code goes here. */
-	list_init(&frame_list);
+	list_init(&frame_table);
 }
 
 /* Get the type of the page. This function is useful if you want to know the
@@ -69,7 +71,7 @@ vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable,
 
 	ASSERT (VM_TYPE(type) != VM_UNINIT)
 
-	struct supplemental_page_table *spt = &thread_current()->spt_hash;
+	struct supplemental_page_table *spt = &thread_current()->spt;
 	struct page *page;
 
 	/* Check wheter the upage is already occupied or not. */
@@ -80,6 +82,7 @@ vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable,
 	 	/* TODO: unit_new를 호출한 후 필드를 수정해야 합니다. */
 
 		struct page *page = (struct page*)malloc(sizeof(struct page));
+		upage = page->va;
 
 		switch (VM_TYPE(type)){
 			case VM_ANON:
@@ -96,7 +99,7 @@ err:
 	return false;
 }
 
-/* Find VA from spt and return page. On error, return NULL. */
+/* spt에서 VA를 찾아 페이지를 리턴함. On error, return NULL. */
 struct page *
 spt_find_page (struct supplemental_page_table *spt UNUSED, void *va UNUSED) {
 	/* TODO: Fill this function. */
@@ -112,16 +115,14 @@ spt_find_page (struct supplemental_page_table *spt UNUSED, void *va UNUSED) {
 		free(page);
 		return hash_entry(spt_elem, struct page, hash_elem);
 	}
-	return page;
 }
 
 /* Insert PAGE into spt with validation. */
 bool spt_insert_page (struct supplemental_page_table *spt UNUSED,
 		struct page *page UNUSED) {
-	int succ = true;
 	/* TODO: Fill this function. */
 	if (hash_insert(spt, &page->hash_elem)){
-		return succ;
+		return true;
 	}else {
 		return false;
 	} 
@@ -147,10 +148,9 @@ vm_get_victim (void) {
 	struct frame *victim = NULL;
 	 /* TODO: The policy for eviction is up to you. */
 	struct thread* curr = thread_current();
-	struct list_elem *elem;
 
-    // frame_list를 순회하면서 가장 최근에 사용되지 않은 frame을 찾음
-    for (elem = list_begin(&frame_list); elem != list_end(&frame_list); elem = list_next(elem)) {
+    // frame_table를 순회하면서 가장 최근에 사용되지 않은 frame을 찾음
+    for (struct list_elem *elem = list_begin(&frame_table); elem != list_end(&frame_table); elem = list_next(elem)) {
 
         victim = list_entry(elem, struct frame, frame_elem);
         // 현재 frame의 PTE가 최근에 접근되었는지 확인
@@ -164,7 +164,7 @@ vm_get_victim (void) {
 	return victim; // 맞게 구현했는지 모르겠음... 확인 좀 부탁해용 ㅠ
 }
 
-/* Evict one page and return the corresponding frame.
+/* 페이지 하나를 빼고, 그 페이지가 빠진 해당 프레임 반환
  * Return NULL on error.*/
 static struct frame *
 vm_evict_frame (void) {
@@ -184,7 +184,9 @@ vm_evict_frame (void) {
 지금으로서는 페이지 할당이 실패했을 경우의 swap out을 할 필요가 없습니다. */
 static struct frame *
 vm_get_frame (void) {
-	struct frame *frame = palloc_get_page(PAL_USER);
+	struct frame *frame = malloc(sizeof(struct frame));
+	frame->kva = palloc_get_page(PAL_USER); //Yeonju: palloc_get_page는 kva 리턴
+
 	/* TODO: Fill this function. */
 	/*!!!!중요!!!! -----> 이걸 알아야 코딩 가능.
 	pintos에서 kva는 물리메모리 주소라고 생각하면 편함.
@@ -196,9 +198,9 @@ vm_get_frame (void) {
 		return frame;
 	}
 
-	// frame 비워주고 frame_list에 넣어줌.
+	// frame 비워주고 frame_table에 넣어줌.
 	frame->page = NULL; 
-	list_push_back(&frame_list, &frame->frame_elem);
+	list_push_back(&frame_table, &frame->frame_elem);
 
 	ASSERT (frame != NULL); // 물리메모리 X 확인
 	ASSERT (frame->page == NULL); // 페이지 테이블 X
@@ -223,6 +225,11 @@ vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,
 	struct page *page = NULL;
 	/* TODO: Validate the fault */
 	/* TODO: Your code goes here */
+	// Sangju did. 6.17. 
+	
+	if (addr == NULL || is_kernel_vaddr(addr)) return false;
+	
+	page = spt_find_page(spt, addr);
 
 	return vm_do_claim_page (page);
 }
@@ -248,7 +255,7 @@ vm_claim_page (void *va UNUSED) {
 	return vm_do_claim_page (page); // vm_do_claim_page를 호출하여 페이지를 claim하고 mmu를 설정함
 }
 
-/* 페이지를 claim하고 mmu를 설정함. */
+/* 페이지를 claim하고 mmu를 설정함. 인자로 주어진 page에 물리 메모리 프레임을 할당 */
 static bool
 vm_do_claim_page (struct page *page) {
 	struct frame *frame = vm_get_frame();
@@ -275,6 +282,29 @@ supplemental_page_table_init (struct supplemental_page_table *spt UNUSED) {
 bool
 supplemental_page_table_copy (struct supplemental_page_table *dst UNUSED,
 		struct supplemental_page_table *src UNUSED) {
+	
+	struct hash_iterator *i;
+	hash_first(&i, src->spt_hash); //i 초기화
+
+	while(hash_next(i)){ // next가 있는동안, vm_page_with_initiater 인자참고
+		struct page *parent_page = hash_entry(hash_cur(i), struct page, hash_elem);
+
+		enum vm_type type = page_get_type(&parent_page);
+		void *upage = parent_page->va;
+		bool writable = parent_page->writable;
+		vm_initializer *init = parent_page->uninit.init;
+		void *aux = parent_page->uninit.aux;
+
+		// vm_alloc_page_with_initializer(type, upage, writable, init, aux);
+
+		if (type == VM_UNINIT){ //uninit일 때 뭐하라고?
+			if (!vm_alloc_page(type, upage, writable)) return false;
+		} else { //setupstack을 어디서 사용하라는 거야
+			struct page *child_page = spt_find_page(dst, parent_page->va); //
+			memcpy(child_page->va, parent_page->va, PGSIZE);
+		}
+	}
+	return true;
 }
 
 /* Free the resource hold by the supplemental page table */
@@ -282,5 +312,11 @@ void
 supplemental_page_table_kill (struct supplemental_page_table *spt UNUSED) {
 	/* TODO: Destroy all the supplemental_page_table hold by thread and
 	 * TODO: writeback all the modified contents to the storage. */
-	hash_destroy(spt->spt_hash, hash_func);
+	struct hash_iterator *i;
+	hash_first(&i, spt->spt_hash); //i 초기화
+	while(hash_next(i)){
+		struct page *page = hash_entry(hash_cur(i), struct page, hash_elem);
+		free(page);
+	} 
+	hash_destroy(&spt->spt_hash, hash_func);	// Yeonju 6.17
 }

@@ -17,12 +17,9 @@ void remove_child_process(struct thread *cp);
 
 bool install_page(void *upage, void *kpage, bool writable);
 struct segment {
-    struct file *file_;
+    struct file *file;
     off_t ofs;
-    uint8_t *upage;
-    uint32_t read_bytes;
-    uint32_t zero_bytes;
-    bool writable;
+    size_t read_bytes;
 };
 
 #endif /* userprog/process.h */

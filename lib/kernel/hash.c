@@ -27,7 +27,7 @@ hash_init (struct hash *h,
 		hash_hash_func *hash, hash_less_func *less, void *aux) {
 	h->elem_cnt = 0;
 	h->bucket_cnt = 4;
-	h->buckets = malloc (sizeof *h->buckets * h->bucket_cnt);
+	h->buckets = malloc (sizeof *h->buckets * h->bucket_cnt); // 왜 malloc을 사용하지?
 	h->hash = hash;
 	h->less = less;
 	h->aux = aux;
@@ -167,7 +167,7 @@ hash_apply (struct hash *h, hash_action_func *action) {
 	}
 }
 
-/* Initializes I for iterating hash table H.
+/* 해시 테이블 H를 반복하기 위해 I를 초기화합니다.
 
    Iteration idiom:
 
@@ -180,10 +180,9 @@ hash_apply (struct hash *h, hash_action_func *action) {
    ...do something with f...
    }
 
-   Modifying hash table H during iteration, using any of the
+   반복하는 동안 해시 테이블 H를 수정할 때, using any of the
    functions hash_clear(), hash_destroy(), hash_insert(),
-   hash_replace(), or hash_delete(), invalidates all
-   iterators. */
+   hash_replace(), or hash_delete(), 모든 이터레이터를 무효화합니다.  */
 void
 hash_first (struct hash_iterator *i, struct hash *h) {
 	ASSERT (i != NULL);
@@ -194,14 +193,12 @@ hash_first (struct hash_iterator *i, struct hash *h) {
 	i->elem = list_elem_to_hash_elem (list_head (i->bucket));
 }
 
-/* Advances I to the next element in the hash table and returns
-   it.  Returns a null pointer if no elements are left.  Elements
-   are returned in arbitrary order.
+/*  I를 해시 테이블의 다음 요소로 전진시킨 i를 반환합니다. 
+	요소가 남아 있지 않으면 널 포인터를 반환합니다. 
+	엘리먼트는 임의의 순서로 반환됩니다.
 
-   Modifying a hash table H during iteration, using any of the
-   functions hash_clear(), hash_destroy(), hash_insert(),
-   hash_replace(), or hash_delete(), invalidates all
-   iterators. */
+   hash_clear(), hash_destroy(), hash_insert(), hash_replace(), or hash_delete()를 사용하면서,
+   반복되는 동안 해시 테이블을 수정하는 행위는 모든 이터레이터를 무효화합니다.. */
 struct hash_elem *
 hash_next (struct hash_iterator *i) {
 	ASSERT (i != NULL);
@@ -220,7 +217,9 @@ hash_next (struct hash_iterator *i) {
 
 /* Returns the current element in the hash table iteration, or a
    null pointer at the end of the table.  Undefined behavior
-   after calling hash_first() but before hash_next(). */
+   after calling hash_first() but before hash_next().
+   해시 테이블 반복의 현재 엘리먼트를 반환하거나, 테이블 끝의
+   널 포인터를 반환합니다. 해시_퍼스트() 호출 후 해시_넥스트() 호출 전 정의되지 않은 동작에 발생합니다. */
 struct hash_elem *
 hash_cur (struct hash_iterator *i) {
 	return i->elem;
@@ -242,7 +241,7 @@ hash_empty (struct hash *h) {
 #define FNV_64_PRIME 0x00000100000001B3UL
 #define FNV_64_BASIS 0xcbf29ce484222325UL
 
-/* Returns a hash of the SIZE bytes in BUF. */
+/* Returns a hash of the SIZE bytes in BUF. SIZE 바이트의 해시를 BUF로 반환 */
 uint64_t
 hash_bytes (const void *buf_, size_t size) {
 	/* Fowler-Noll-Vo 32-bit hash, for bytes. */

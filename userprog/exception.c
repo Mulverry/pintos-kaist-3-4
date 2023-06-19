@@ -126,23 +126,20 @@ page_fault (struct intr_frame *f) {
 	bool user;         /* True: access by user, false: access by kernel. */
 	void *fault_addr;  /* Fault address. */
 
-	/* Obtain faulting address, the virtual address that was
-	   accessed to cause the fault.  It may point to code or to
-	   data.  It is not necessarily the address of the instruction
-	   that caused the fault (that's f->rip). */
+	/* faulting address(결함을 유발하기 위해 액세스한 가상주소)를 가져온다.
+	코드나 데이터를 가리킬 수 있지만, 반드시 오류를 일으킨 명령의 주소(f->rip)일 필요는 없다.*/
 
-	fault_addr = (void *) rcr2();
+	fault_addr = (void *) rcr2(); //페이지 부재가 발생한 가상주소(=페이지 부재를 발생시킨 r/o동작의 가상주소) 저장.
 
 	/* Turn interrupts back on (they were only off so that we could
 	   be assured of reading CR2 before it changed). */
 	intr_enable ();
 
 
-	/* Determine cause. */
+	/* 원인 결정. */
 	not_present = (f->error_code & PF_P) == 0;
 	write = (f->error_code & PF_W) != 0;
 	user = (f->error_code & PF_U) != 0;
-	exit(-1);
 
 #ifdef VM
 	/* For project 3 and later. */
@@ -153,12 +150,13 @@ page_fault (struct intr_frame *f) {
 	/* Count page faults. */
 	page_fault_cnt++;
 
-	/* If the fault is true fault, show info and exit. */
+	/* 페이지 부재가 실제 로 발생했다면, show info and exit. */
 	printf ("Page fault at %p: %s error %s page in %s context.\n",
 			fault_addr,
 			not_present ? "not present" : "rights violation",
 			write ? "writing" : "reading",
 			user ? "user" : "kernel");
-	kill (f);
+	// kill (f);
+	exit(-1);
 }
 
