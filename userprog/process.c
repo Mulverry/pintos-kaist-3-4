@@ -746,19 +746,20 @@ lazy_load_segment (struct page *page, void *aux) {
 	/* TODO: This called when the first page fault occurs on address VA. */
 	/* TODO: VA is available when calling this function. */
 
-	struct frame *frame = page->frame; 
 	struct segment *seg = (struct segment *)aux;
 	struct file *file = seg->file;
-	size_t size_for_zero = PGSIZE- seg->read_bytes;
+	off_t ofs = seg->ofs;
+	size_t read_bytes = seg->read_bytes;
+	size_t zero_bytes = PGSIZE- read_bytes;
 
-	file_seek(file, seg->ofs);
+	file_seek(file, ofs);
 
-	if (file_read(file, frame->kva, seg->read_bytes) != (int) seg->read_bytes){
-		palloc_free_page(frame->page);
+	if (file_read(file, page->frame->kva, read_bytes) != (int) read_bytes){
+		palloc_free_page(page->frame->kva);
 		return false;
 	} else {
-		memset(page->frame->kva + seg->read_bytes, 0, size_for_zero);
-		file_seek(file, seg->ofs); // offset 초기화
+		memset(page->frame->kva + read_bytes, 0, zero_bytes);
+		// file_seek(file, ofs); // offset 초기화
 		return true;
 	}
 }
@@ -815,7 +816,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 /* 6.17. Sangju: Create a PAGE of stack at the USER_STACK. Return true on success. */
 static bool
 setup_stack (struct intr_frame *if_) {
-	bool success = true;
+	bool success = false;
 	void *stack_bottom = (void *) (((uint8_t *) USER_STACK) - PGSIZE);
 
 	/* TODO: Map the stack on stack_bottom and claim the page immediately.

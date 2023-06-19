@@ -19,7 +19,6 @@
 
 void syscall_entry(void);
 void syscall_handler(struct intr_frame *);
-void check_address(void *addr);
 void get_argument(void *rsp, int *arg, int count);
 void halt(void);
 void exit(int status);
@@ -35,7 +34,8 @@ int write(int fd, const void *buffer, unsigned size);
 void seek(int fd, unsigned position);
 unsigned tell(int fd);
 void close(int fd);
-void check_address(void *addr);
+void* check_address(void *addr);
+void check_buffer(void *buffer, unsigned size, void *rsp, bool writable);
 int process_add_file(struct file *f);
 struct file *process_get_file(int fd);
 
@@ -106,9 +106,11 @@ void syscall_handler(struct intr_frame *f UNUSED)
 		f->R.rax = filesize(f->R.rdi);
 		break;
 	case SYS_READ: /* Read from a file. */
+		check_buffer(f->rsp, f->R.rdx, f->rsp, 1);
 		f->R.rax = read(f->R.rdi, f->R.rsi, f->R.rdx);
 		break;
 	case SYS_WRITE: /* Write to a file. */
+		check_buffer(f->rsp, f->R.rdx, f->rsp, 1);
 		f->R.rax = write(f->R.rdi, f->R.rsi, f->R.rdx);
 		break;
 	case SYS_SEEK: /* Change position in a file. */
@@ -342,11 +344,20 @@ void close(int fd)
 주소 값이 유저 영역 주소 값인지 확인
 유저 영역을 벗어난 영역일 경우 프로세스 종료(exit(-1)
 */
-void check_address(void *addr)
+void* check_address(void *addr)
 {
 	struct thread *curr = thread_current();
 	if (is_kernel_vaddr(addr) || pml4_get_page(curr->pml4,addr) == NULL)
 	{
 		exit(-1);
+	}
+	return spt_find_page(&curr->spt, addr);
+}
+
+void check_buffer(void* buffer, unsigned size, void* rsp, bool writable){
+	for (int i = 0; i < size; i++){
+		struct page *page = check_address(buffer + i);
+		if (page == NULL) exit(-1);
+		if (writable == true && page->writable == false) exit(-1);
 	}
 }
