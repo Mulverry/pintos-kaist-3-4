@@ -136,6 +136,10 @@ duplicate_pte(uint64_t *pte, void *va, void *aux)
    /* 3. TODO: Allocate new PAL_USER page for the child and set result to
     *    TODO: NEWPAGE. */
    newpage = palloc_get_page(PAL_USER);
+   if (newpage == NULL)
+   {
+      return false;
+   }
    /* 4. TODO: Duplicate parent's page to the new page and
     *    TODO: check whether parent's page is writable or not (set WRITABLE
     *    TODO: according to the result). */
@@ -146,6 +150,7 @@ duplicate_pte(uint64_t *pte, void *va, void *aux)
    if (!pml4_set_page(current->pml4, va, newpage, writable))
    {
       /* 6. TODO: if fail to insert page, do error handling. */
+      palloc_free_page(newpage);
       return false;
    }
    return true;
@@ -242,9 +247,9 @@ int process_exec(void *f_name)
 
    /* We first kill the current context */
    process_cleanup();
-
+#ifdef VM
    supplemental_page_table_init(&cur->spt);
-
+#endif
    // for argument parsing
    char *parse[64];
    int count = 0;
@@ -791,7 +796,7 @@ lazy_load_segment(struct page *page, void *aux)
 
    memset(page->frame->kva + read_bytes, 0, size_for_zero);
 
-   file_seek(file, offset); // offset 초기화
+   // file_seek(file, offset); // offset 초기화
 
    return true;
 }
@@ -864,7 +869,7 @@ setup_stack(struct intr_frame *if_)
       success = vm_claim_page(stack_bottom);
       if (success)
       {
-         if_->rsp = USER_STACK;
+         if_->rsp = (uintptr_t)USER_STACK;
          // thread_current()->stack_bottom = stack_bottom;
       }
    }

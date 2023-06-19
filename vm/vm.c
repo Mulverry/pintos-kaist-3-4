@@ -86,19 +86,19 @@ spt_find_page(struct supplemental_page_table *spt UNUSED, void *va UNUSED)
 {
 	/* TODO: Fill this function. */
 	struct page *page = (struct page *)malloc(sizeof(struct page)); // 페이지 할당
-	struct hash_elem *spt_elem;
+	struct hash_elem *elem;
+	page->va = pg_round_down(va);
 
-	page->va = pg_round_down(va);							 // 페이지 번호 얻기
-	if (hash_find(&spt->spt_hash, &page->hash_elem) == NULL) // 존재안하면 NULL
+	elem = hash_find(&spt->spt_hash, &page->hash_elem);
+	free(page);
+
+	if (elem == NULL)
 	{
-		free(page);
 		return NULL;
 	}
-	else // 하면
+	else
 	{
-		spt_elem = hash_find(&spt->spt_hash, &page->hash_elem); // hash_entry 리턴
-		free(page);
-		return hash_entry(spt_elem, struct page, hash_elem);
+		return hash_entry(elem, struct page, hash_elem);
 	}
 }
 
@@ -139,14 +139,14 @@ vm_get_victim(void)
 /* Evict one page and return the corresponding frame.
  * Return NULL on error.*/
 // Sangju
-//  static struct frame *
-//  vm_evict_frame(void)
-//  {
-//  	struct frame *victim = vm_get_victim(); // 쳐낼 frame 페이지 찾기
-//  	/* TODO: swap out the victim and return the evicted frame. */
-//  	swap_out(victim->page);
-//  	return victim;
-//  }
+static struct frame *
+vm_evict_frame(void)
+{
+	struct frame *victim = vm_get_victim(); // 쳐낼 frame 페이지 찾기
+	/* TODO: swap out the victim and return the evicted frame. */
+	swap_out(victim->page);
+	return victim;
+}
 
 /* palloc() and get frame. If there is no available page, evict the page
  * and return it. This always return valid address. That is, if the user pool
@@ -160,6 +160,10 @@ vm_get_frame(void)
 	// Sangju
 	// 반환받은 주소를 frame 구조체에 할당
 	frame->kva = palloc_get_page(PAL_USER);
+	if (frame->kva == NULL)
+	{
+		PANIC("todo");
+	}
 	/* TODO: Fill this function. */
 	/*
 	!!!!중요!!!! -----> 이걸 알아야 코딩 가능.
@@ -335,39 +339,70 @@ bool less_func(const struct hash_elem *a, const struct hash_elem *b, void *aux)
 	const struct page *p_b = hash_entry(b, struct page, hash_elem);
 	return p_a->va < p_b->va;
 }
-// v2
 bool supplemental_page_table_copy(struct supplemental_page_table *dst UNUSED,
 								  struct supplemental_page_table *src UNUSED)
 {
-	struct hash_iterator i;
-	hash_first(&i, &src->spt_hash); // i 초기화
+	struct hash_iterator hash_iter;
+	struct page *parent_page;
+	bool success = false;
+	hash_first(&hash_iter, &src->spt_hash);
+	while (hash_next(&hash_iter))
+	{
+		parent_page = hash_entry(hash_cur(&hash_iter), struct page, hash_elem);
 
-	while (hash_next(&i))
-	{ // next가 있는동안, vm_page_with_initiater 인자참고
-		struct page *parent_page = hash_entry(hash_cur(&i), struct page, hash_elem);
-
-		enum vm_type type = page_get_type(parent_page);
-		void *upage = parent_page->va;
-		bool writable = parent_page->writable;
-		vm_initializer *init = parent_page->uninit.init;
-		void *aux = parent_page->uninit.aux;
-
-		// vm_alloc_page_with_initializer(type, upage, writable, init, aux);
-		// 부모 페이지들의 정보를 저장한 뒤,자식이 가질 새로운 페이지를 생성해야합니다.생성을 위해 부모 페이지의 타입을 먼저 검사합니다.즉,부모 페이지가UNINIT 페이지인 경우와 그렇지 않은 경우를 나누어 페이지를 생성해줘야합니다.
-		if (!vm_alloc_page_with_initializer(type, upage, writable, init, aux))
+		success = vm_alloc_page_with_initializer(parent_page->uninit.type,
+												 parent_page->va,
+												 parent_page->writable,
+												 parent_page->uninit.init,
+												 parent_page->uninit.aux);
+		if (!success)
 			return false;
-
-		struct page *child_page = spt_find_page(dst, upage); // 부모 주소 찾아서 복사.
-
-		if (child_page->frame != NULL)
+		struct page *child_page = spt_find_page(dst, parent_page->va);
+		if (parent_page->frame)
 		{
-			if (!vm_do_claim_page(child_page))
+			success = vm_do_claim_page(child_page);
+			if (!success)
+			{
 				return false;
+			}
 			memcpy(child_page->frame->kva, parent_page->frame->kva, PGSIZE);
 		}
 	}
-	return true;
+	return success;
 }
+// v2
+// bool supplemental_page_table_copy(struct supplemental_page_table *dst UNUSED,
+// 								  struct supplemental_page_table *src UNUSED)
+// {
+// 	struct hash_iterator i;
+// 	hash_first(&i, &src->spt_hash); // i 초기화
+
+// 	while (hash_next(&i))
+// 	{ // next가 있는동안, vm_page_with_initiater 인자참고
+// 		struct page *parent_page = hash_entry(hash_cur(&i), struct page, hash_elem);
+
+// 		enum vm_type type = page_get_type(parent_page);
+// 		void *upage = parent_page->va;
+// 		bool writable = parent_page->writable;
+// 		vm_initializer *init = parent_page->uninit.init;
+// 		void *aux = parent_page->uninit.aux;
+
+// 		// vm_alloc_page_with_initializer(type, upage, writable, init, aux);
+// 		// 부모 페이지들의 정보를 저장한 뒤,자식이 가질 새로운 페이지를 생성해야합니다.생성을 위해 부모 페이지의 타입을 먼저 검사합니다.즉,부모 페이지가UNINIT 페이지인 경우와 그렇지 않은 경우를 나누어 페이지를 생성해줘야합니다.
+// 		if (!vm_alloc_page_with_initializer(type, upage, writable, init, aux))
+// 			return false;
+
+// 		struct page *child_page = spt_find_page(dst, upage); // 부모 주소 찾아서 복사.
+
+// 		if (child_page->frame != NULL)
+// 		{
+// 			if (!vm_do_claim_page(child_page))
+// 				return false;
+// 			memcpy(child_page->frame->kva, parent_page->frame->kva, PGSIZE);
+// 		}
+// 	}
+// 	return true;
+// }
 /* 보조 페이지 표를 src에서 dst 로 복사합니다*/
 // bool supplemental_page_table_copy(struct supplemental_page_table *dst UNUSED,
 // 								  struct supplemental_page_table *src UNUSED)
@@ -418,20 +453,20 @@ void supplemental_page_table_kill(struct supplemental_page_table *spt UNUSED)
 {
 	/* TODO: Destroy all the supplemental_page_table hold by thread and
 	 * TODO: writeback all the modified contents to the storage. */
-	struct hash_iterator i;
+	// struct hash_iterator i;
 
-	hash_first(&i, &spt->spt_hash);
-	while (hash_next(&i))
-	{
-		struct page *page = hash_entry(hash_cur(&i), struct page, hash_elem);
+	// hash_first(&i, &spt->spt_hash);
+	// while (hash_next(&i))
+	// {
+	// 	struct page *page = hash_entry(hash_cur(&i), struct page, hash_elem);
 
-		// if (page->operations->type == VM_FILE){
-		// munmap(page->va);
-		// }
+	// 	// if (page->operations->type == VM_FILE){
+	// 	// munmap(page->va);
+	// 	// }
 
-		hash_destroy(&spt->spt_hash, remove_spt);
-	}
-	// hash_destroy(&spt->spt_hash, remove_spt);
+	// 	hash_destroy(&spt->spt_hash, remove_spt);
+	// }
+	hash_destroy(&spt->spt_hash, remove_spt);
 }
 
 void remove_spt(struct hash_elem *elem, void *aux)
