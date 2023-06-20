@@ -95,18 +95,13 @@ tid_t process_fork(const char *name, struct intr_frame *if_ UNUSED)
    memcpy(&thread_current()->parent_if, if_, sizeof(struct intr_frame));
    tid_t tid = thread_create(name, PRI_DEFAULT, __do_fork, cur);
 
-   if (tid == TID_ERROR)
+   struct thread *child = get_child_process(tid); // child_list안에서 만들어진 child thread를 찾음
+   if (tid == TID_ERROR || child->exit_flag == -1)
    {
       return TID_ERROR;
    }
-   struct thread *child = get_child_process(tid); // child_list안에서 만들어진 child thread를 찾음
 
    sema_down(&child->load_sema); // 자식이 메모리에 load 될때까지 기다림(blocked)
-
-   if (child->exit_flag == -1)
-   {
-      return TID_ERROR;
-   }
    return tid;
 }
 
@@ -313,12 +308,12 @@ void argument_stack(char **parse, int count, void **rsp)
 
 int process_add_file(struct file *f)
 {
+
    struct thread *cur = thread_current();
 
    // 파일 객체(struct file)를 가리키는 포인터를 File Descriptor 테이블에 추가
-   lock_acquire(&filesys_lock);
    cur->fdt[cur->next_fd] = f;
-   lock_release(&filesys_lock);
+
    // 다음 File Descriptor 값 1 증가
    cur->next_fd++;
    // 추가된 파일 객체의 File Descriptor 반환
@@ -764,22 +759,33 @@ lazy_load_segment(struct page *page, void *aux)
    /* TODO: Load the segment from the file */
    /* TODO: This called when the first page fault occurs on address VA. */
    /* TODO: VA is available when calling this function. */
+   struct segment *seg = (struct segment*)aux;
+   struct file *file = seg->file;
+   off_t ofs = seg->ofs;
+   size_t read_bytes = seg->read_bytes;
+   size_t zero_bytes = PGSIZE- read_bytes;
+
+   file_seek(file, ofs);
+
+   if (file_read(file, page->frame->kva, read_bytes) != (int)read_bytes){
+      palloc_free_page(page->frame->kva);
+      return false;
+   }
+   memset(page->frame->kva + read_bytes, 0, zero_bytes);
+   return true;
 }
 
-/* Loads a segment starting at offset OFS in FILE at address
- * UPAGE.  In total, READ_BYTES + ZERO_BYTES bytes of virtual
- * memory are initialized, as follows:
+/* 주소 UPAGE에 위치한 파일의 오프셋 OFS에서 시작하는 세그만트를 로드함.
+ * 아래와 같이, READ_BYTES + ZERO_BYTES 바이트의 가상 메모리가 초기화
  *
- * - READ_BYTES bytes at UPAGE must be read from FILE
- * starting at offset OFS.
+ * - 오프셋 OFS에서 시작하는 FILE에서 UPAGE의 READ_BYTES 바이트를 읽어야함
+ * - UPAGE + READ_BYTES에서 ZERO_BYTES 바이트는 0이 되어야 함.
  *
- * - ZERO_BYTES bytes at UPAGE + READ_BYTES must be zeroed.
+ * 이 함수에 의해 초기화된 페이지는 WRITABLE 이 참이면 사용자 프로세스에서 쓰기 가능해야 하고,
+ * 그렇지 않으면 읽기 전용이어야 합니다.
  *
- * The pages initialized by this function must be writable by the
- * user process if WRITABLE is true, read-only otherwise.
- *
- * Return true if successful, false if a memory allocation error
- * or disk read error occurs. */
+ * 성공하면 true를 반환하고, 메모리 할당 오류나 또는 디스크 읽기 오류가 발생하면 거짓을 반환합니다.
+ * => 세그먼트를 페이지 단위로 읽어 메모리에 로딩하고 가상 주소와의 매핑을 설정*/
 static bool
 load_segment(struct file *file, off_t ofs, uint8_t *upage,
              uint32_t read_bytes, uint32_t zero_bytes, bool writable)
@@ -788,7 +794,7 @@ load_segment(struct file *file, off_t ofs, uint8_t *upage,
    ASSERT(pg_ofs(upage) == 0);
    ASSERT(ofs % PGSIZE == 0);
 
-   while (read_bytes > 0 || zero_bytes > 0)
+   while (read_bytes > 0 || zero_bytes > 0) //read_bytes와 zero_bytes가 모두 0이 될 때까지
    {
       /* Do calculate how to fill this page.
        * We will read PAGE_READ_BYTES bytes from FILE
@@ -797,9 +803,13 @@ load_segment(struct file *file, off_t ofs, uint8_t *upage,
       size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
       /* TODO: Set up aux to pass information to the lazy_load_segment. */
-      void *aux = NULL;
+      struct segment *seg = (struct segment *)malloc(sizeof(struct segment));
+      seg->file = file;
+      seg->ofs = ofs;
+      seg->read_bytes = page_read_bytes;
+      
       if (!vm_alloc_page_with_initializer(VM_ANON, upage,
-                                          writable, lazy_load_segment, aux))
+                                          writable, lazy_load_segment, seg))
          return false;
 
       /* Advance. */
@@ -822,6 +832,13 @@ setup_stack(struct intr_frame *if_)
     * TODO: You should mark the page is stack. */
    /* TODO: Your code goes here */
 
+   if (vm_alloc_page(VM_ANON | VM_MARKER_0, stack_bottom, 1) == NULL){
+      success = vm_claim_page(stack_bottom);
+      if (success){
+         if_->rsp = USER_STACK;
+         thread_current()->stack_bottom = stack_bottom;
+      }
+   }
    return success;
 }
 #endif /* VM */

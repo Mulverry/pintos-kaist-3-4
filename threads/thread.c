@@ -198,8 +198,8 @@ tid_t thread_create(const char *name, int priority,
    init_thread(t, name, priority); /* thread 구조체 초기화*/
    tid = t->tid = allocate_tid();  /* tid 할당 */
 
-   struct file **new_fdt = (struct file **)palloc_get_multiple(PAL_ZERO, 3);
-   t->fdt = new_fdt;
+   struct file **new_fdt = (struct file **)palloc_get_page(PAL_ZERO);
+   *t->fdt = new_fdt;
 
    /* Call the kernel_thread if it scheduled.
     * Note) rdi is 1st argument, and rsi is 2nd argument. */
@@ -401,10 +401,10 @@ void thread_set_priority(int new_priority)
 
 void test_max_priority(void)
 {
-   //    ready_list에서 우선 순위가 가장 높은 쓰레드와 현재 쓰레드의 우선 순위를
+   //  ready_list에서 우선 순위가 가장 높은 쓰레드와 현재 쓰레드의 우선 순위를
    // 비교.
    //  현재 쓰레드의 우선수위가 더 작다면 thread_yield()
-   if (list_entry(ready_list.head.next, struct thread, elem)->priority > thread_get_priority())
+   if (!intr_context() && (list_entry(ready_list.head.next, struct thread, elem)->priority > thread_get_priority()))
    {
       thread_yield();
    }
