@@ -754,25 +754,23 @@ install_page(void *upage, void *kpage, bool writable)
  * upper block. */
 
 static bool
-lazy_load_segment(struct page *page, void *aux)
-{
-   /* TODO: Load the segment from the file */
-   /* TODO: This called when the first page fault occurs on address VA. */
-   /* TODO: VA is available when calling this function. */
-   struct segment *seg = (struct segment*)aux;
-   struct file *file = seg->file;
-   off_t ofs = seg->ofs;
-   size_t read_bytes = seg->read_bytes;
-   size_t zero_bytes = PGSIZE- read_bytes;
-
-   file_seek(file, ofs);
-
-   if (file_read(file, page->frame->kva, read_bytes) != (int)read_bytes){
-      palloc_free_page(page->frame->kva);
-      return false;
-   }
-   memset(page->frame->kva + read_bytes, 0, zero_bytes);
-   return true;
+lazy_load_segment (struct page *page, void *aux) {
+	/* TODO: Load the segment from the file */
+	/* TODO: This called when the first page fault occurs on address VA. */
+	/* TODO: VA is available when calling this function. */
+	struct segment *seg = (struct segment *)aux;
+	struct file *file = seg->file;
+	off_t ofs = seg->ofs;
+	size_t read_bytes = seg->page_read_bytes;
+	size_t zero_bytes = PGSIZE - read_bytes;
+	
+	file_seek(file, ofs);
+	if(file_read(file, page->frame->kva, read_bytes) != (int)read_bytes){
+		palloc_free_page(page->frame->kva);
+		return false;
+	}
+	memset(page->frame->kva + read_bytes, 0, zero_bytes);
+	return true;
 }
 
 /* 주소 UPAGE에 위치한 파일의 오프셋 OFS에서 시작하는 세그만트를 로드함.
@@ -804,7 +802,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 		//void *aux = NULL;
 		struct segment *seg = (struct segment*)malloc(sizeof(struct segment));
 		seg->file = file;
-		seg->read_bytes = page_read_bytes;
+		seg->page_read_bytes = page_read_bytes;
 		seg->ofs = ofs;
 		if (!vm_alloc_page_with_initializer (VM_ANON, upage,
 					writable, lazy_load_segment, seg))
