@@ -9,6 +9,7 @@
 void remove_spt (struct hash_elem *e, void *aux);
 uint64_t hash_func (const struct hash_elem *e, void *aux);
 bool hash_less (const struct hash_elem *a, const struct hash_elem *b, void *aux);
+bool install_page(void *upage, void *kpage, bool writable);
 
 struct list frame_table;
 
@@ -85,7 +86,7 @@ err:
 /* Find VA from spt and return page. On error, return NULL. */
 struct page *
 spt_find_page (struct supplemental_page_table *spt UNUSED, void *va UNUSED) {
-	struct page *page = (struct page*)malloc(sizeof(struct page));
+	struct page *page = (struct page *)malloc(sizeof(struct page));
 	/* TODO: Fill this function. */
 	struct hash_elem *e;
 	page->va = pg_round_down(va);
@@ -142,7 +143,7 @@ vm_evict_frame (void) {
 지금으로서는 페이지 할당이 실패했을 경우의 swap out을 할 필요가 없습니다.*/
 static struct frame *
 vm_get_frame (void) {
-	struct frame *frame = (struct frame*)malloc(sizeof(struct frame));
+	struct frame *frame = (struct frame *)malloc(sizeof(struct frame));
 	/* TODO: Fill this function. */
 	/*!!!!중요!!!! -----> pintos에서 kva는 물리메모리 주소라고 생각하면 편함.
 	우선 frame 구조체 안에 kva가 선언이 되있고 pintos에서는 실제 dram이 장착되어서 구동되는게 아니기 때문에.
@@ -153,10 +154,10 @@ vm_get_frame (void) {
 		// frame = vm_evict_frame();
 		// frame->page = NULL;
 		// return frame;
-
+		PANIC("todo");
 	}
 
-	// frame->page = NULL;
+	frame->page = NULL;
 	// list_push_back(&frame_table, &frame->frame_elem);
 
 	ASSERT (frame != NULL);  // 물리메모리 X 확인
@@ -182,8 +183,14 @@ vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,
 	struct page *page = NULL;
 	/* TODO: Validate the fault */
 	/* TODO: Your code goes here */
-
-	return vm_do_claim_page (page);
+	if (is_kernel_vaddr(addr)) return false;
+	page =spt_find_page(spt, addr);
+	if (page == NULL) {
+		return false;
+	} else {
+		return vm_do_claim_page (page);
+	}
+	return false;
 }
 
 /* Free the page.
@@ -226,6 +233,15 @@ vm_do_claim_page (struct page *page) {
 	}
 	return false;
 }
+bool
+install_page(void *upage, void *kpage, bool writable)
+{
+   struct thread *t = thread_current();
+
+   /* Verify that there's not already a page at that virtual
+    * address, then map our page there. */
+   return (pml4_get_page(t->pml4, upage) == NULL && pml4_set_page(t->pml4, upage, kpage, writable));
+}
 
 /* Initialize new supplemental page table */
 void
@@ -238,7 +254,8 @@ bool
 supplemental_page_table_copy (struct supplemental_page_table *dst UNUSED,
 		struct supplemental_page_table *src UNUSED) {
 	struct hash_iterator i;
-	hash_first(&i, &src->spt_hash);
+	hash_first(&i, &src->spt_hash); //i 초기화
+
 	while (hash_next(&i)){
 		struct page *parent_page = hash_entry(hash_cur(&i), struct page, hash_elem);
 		enum vm_type type = page_get_type(parent_page);
@@ -253,7 +270,7 @@ supplemental_page_table_copy (struct supplemental_page_table *dst UNUSED,
 
 		if (parent_page->frame != NULL){
 			if (!vm_do_claim_page(child_page)) return false;
-			memcpy(child_page->frame->kva, parent_page->frame->kva, PGSIZE);
+			memcpy(child_page->frame->kva, parent_page->frame->kva, PGSIZE); 
 		}
 	}
 	return true;

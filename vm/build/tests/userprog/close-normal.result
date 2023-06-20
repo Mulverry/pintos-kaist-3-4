@@ -1,0 +1,27 @@
+FAIL
+Kernel panic in run: PANIC at ../../threads/thread.c:293 in thread_current(): assertion `is_thread(t)' failed.
+Call stack: 0x8004217e04 0x8004207100 0x800420a75c 0x800421b109 0x800421b2d6 0x800421b2ba 0x80042161fc 0x8004215652 0x800421b169 0x8004215307 0x800421d084 0x800421cc24 0x8004208c5f 0x800420907d 0x800421ac02 0x800421a5ec 0x8004220982 0x800422086a 0x800421c68e 0x800421c285 0x800421b987 0x800421b485 0x8004207608
+Translation of call stack:
+0x0000008004217e04: debug_panic (lib/kernel/debug.c:32)
+0x0000008004207100: thread_current (threads/thread.c:294)
+0x000000800420a75c: lock_held_by_current_thread (threads/synch.c:379)
+0x000000800421b109: console_locked_by_current_thread (lib/kernel/console.c:111 (discriminator 2))
+0x000000800421b2d6: putchar_have_lock (lib/kernel/console.c:173)
+0x000000800421b2ba: vprintf_helper (lib/kernel/console.c:166)
+0x00000080042161fc: format_integer (lib/stdio.c:506)
+0x0000008004215652: __vprintf (lib/stdio.c:206)
+0x000000800421b169: vprintf (lib/kernel/console.c:123)
+0x0000008004215307: printf (lib/stdio.c:80)
+0x000000800421d084: exit (userprog/syscall.c:146)
+0x000000800421cc24: page_fault (userprog/exception.c:146)
+0x0000008004208c5f: intr_handler (threads/interrupt.c:352)
+0x000000800420907d: intr_entry (threads/intr-stubs.o:?)
+0x000000800421ac02: find_elem (lib/kernel/hash.c:294)
+0x000000800421a5ec: hash_find (lib/kernel/hash.c:125)
+0x0000008004220982: spt_find_page (vm/vm.c:93)
+0x000000800422086a: vm_alloc_page_with_initializer (vm/vm.c:62)
+0x000000800421c68e: load_segment (userprog/process.c:809)
+0x000000800421c285: load (userprog/process.c:573)
+0x000000800421b987: process_exec (userprog/process.c:256)
+0x000000800421b485: initd (userprog/process.c:82)
+0x0000008004207608: kernel_thread (threads/thread.c:496)

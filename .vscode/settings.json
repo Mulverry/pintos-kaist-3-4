@@ -6,6 +6,12 @@
         "gdt.h": "c",
         "tss.h": "c",
         "process.h": "c",
-        "compare": "c"
+        "compare": "c",
+        "debug.h": "c",
+        "thread.h": "c",
+        "syscall.h": "c",
+        "interrupt.h": "c",
+        "syscall-nr.h": "c",
+        "stdio.h": "c"
     }
 }
