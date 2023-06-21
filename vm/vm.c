@@ -189,9 +189,15 @@ vm_get_frame(void)
 }
 
 /* Growing the stack. */
+// 스택은 anonymous page
 static void
 vm_stack_growth(void *addr UNUSED)
 {
+	struct thread *curr = thread_current();
+	if (vm_alloc_page(VM_ANON, pg_round_down(addr), true))
+	{
+		curr->stack_bottom -= PGSIZE;
+	}
 }
 
 /* Handle the fault on write_protected page */
@@ -200,67 +206,27 @@ vm_handle_wp(struct page *page UNUSED)
 {
 }
 // v2
-bool vm_try_handle_fault(struct intr_frame *f UNUSED, void *addr UNUSED, bool user UNUSED, bool write UNUSED, bool not_present UNUSED)
+bool vm_try_handle_fault(struct intr_frame *f UNUSED, void *addr UNUSED,
+						 bool user UNUSED, bool write UNUSED, bool not_present UNUSED)
 {
-	struct supplemental_page_table *spt UNUSED = &thread_current()->spt;
-	struct page *page = NULL;
 	/* TODO: Validate the fault */
 	/* TODO: Your code goes here */
-	bool success = false;
-	if (is_kernel_vaddr(addr))
+	if (is_kernel_vaddr(addr) || !addr)
 		return false;
-	page = spt_find_page(spt, addr);
-	if (page == NULL)
-		return false;
-	else
-	{
-		success = vm_do_claim_page(page);
-		return success;
+	// 현재 쓰레드의 rsp 주소값을 담는 변수 커널영역인지 확인
+	// rsp 스택에 대한 값이 바뀌는데 생기는 문제가 있지않은가 (도형) -> 실제로 테스트 실패하는경우 생김
+	void *rsp_stack = is_kernel_vaddr(f->rsp) ? thread_current()->rsp_stack : f->rsp;
+
+	if (not_present)
+	{ // 유저 스택내에 존재하는지, fault 발생 주소가 스택 포인터 아래 8byte 위치하는지.
+		if (USER_STACK - (1 << 20) <= addr && addr < USER_STACK && rsp_stack - 8 <= addr && thread_current()->stack_bottom > addr)
+		{
+			addr = thread_current()->stack_bottom - PGSIZE;
+			vm_stack_growth(addr);
+		}
 	}
-
-	return success;
+	return vm_claim_page(addr);
 }
-/* Return true on success */
-// v1
-// bool vm_try_handle_fault(struct intr_frame *f UNUSED, void *addr UNUSED,
-// 						 bool user UNUSED, bool write UNUSED, bool not_present UNUSED)
-// {
-// 	struct supplemental_page_table *spt UNUSED = &thread_current()->spt;
-// 	struct page *page = NULL;
-// 	/* TODO: Validate the fault */
-// 	/* TODO: Your code goes here */
-// 	if (is_kernel_vaddr(addr))
-// 		return false;
-
-// 	void *rsp_stack;
-// 	if (is_kernel_vaddr(f->rsp))
-// 	{
-// 		rsp_stack = thread_current()->rsp_stack;
-// 	}
-// 	else
-// 	{
-// 		rsp_stack = f->rsp;
-// 	}
-
-// 	if (not_present)
-// 	{
-// 		if (!vm_claim_page(addr))
-// 		{
-// 			if (rsp_stack - 8 <= addr && addr <= USER_STACK)
-// 			{
-// 				vm_stack_growth(thread_current()->stack_bottom - PGSIZE);
-// 				return true;
-// 			}
-// 			return false;
-// 		}
-// 		else
-// 		{
-// 			return true;
-// 		}
-// 	}
-// 	return false;
-// 	// return vm_do_claim_page (page);
-// }
 
 /* Free the page.
  * DO NOT MODIFY THIS FUNCTION. */
@@ -278,7 +244,9 @@ bool vm_claim_page(void *va UNUSED)
 	page = spt_find_page(spt, va); // spt에서 해당 va를 가진 페이지 찾기
 
 	if (page == NULL)
+	{
 		return false;
+	}
 
 	return vm_do_claim_page(page);
 }
@@ -339,25 +307,33 @@ bool less_func(const struct hash_elem *a, const struct hash_elem *b, void *aux)
 	const struct page *p_b = hash_entry(b, struct page, hash_elem);
 	return p_a->va < p_b->va;
 }
+
+/* 보조 페이지 표를 src에서 dst 로 복사합니다*/
 bool supplemental_page_table_copy(struct supplemental_page_table *dst UNUSED,
 								  struct supplemental_page_table *src UNUSED)
 {
-	struct hash_iterator hash_iter;
-	struct page *parent_page;
-	bool success = false;
-	hash_first(&hash_iter, &src->spt_hash);
-	while (hash_next(&hash_iter))
-	{
-		parent_page = hash_entry(hash_cur(&hash_iter), struct page, hash_elem);
 
-		success = vm_alloc_page_with_initializer(parent_page->uninit.type,
-												 parent_page->va,
-												 parent_page->writable,
-												 parent_page->uninit.init,
-												 parent_page->uninit.aux);
+	struct hash_iterator i;
+
+	bool success = false;
+
+	hash_first(&i, &src->spt_hash); // i 초기화
+	while (hash_next(&i))
+	{ // next가 있는동안, vm_page_with_initiater 인자참고
+		struct page *parent_page = hash_entry(hash_cur(&i), struct page, hash_elem);
+		enum vm_type type = page_get_type(parent_page);
+		void *upage = parent_page->va;
+		bool writable = parent_page->writable;
+		vm_initializer *init = parent_page->uninit.init;
+		void *aux = parent_page->uninit.aux;
+		success = vm_alloc_page_with_initializer(type, upage, writable, init, aux);
+		// vm_alloc_page_with_initializer(type, upage, writable, init, aux);
+		// 부모 페이지들의 정보를 저장한 뒤,자식이 가질 새로운 페이지를 생성해야합니다.생성을 위해 부모 페이지의 타입을 먼저 검사합니다.즉,부모 페이지가UNINIT 페이지인 경우와 그렇지 않은 경우를 나누어 페이지를 생성해줘야합니다.
 		if (!success)
+		{
 			return false;
-		struct page *child_page = spt_find_page(dst, parent_page->va);
+		}
+		struct page *child_page = spt_find_page(dst, upage);
 		if (parent_page->frame)
 		{
 			success = vm_do_claim_page(child_page);
@@ -367,86 +343,14 @@ bool supplemental_page_table_copy(struct supplemental_page_table *dst UNUSED,
 			}
 			memcpy(child_page->frame->kva, parent_page->frame->kva, PGSIZE);
 		}
+		// 부모 주소로 찾아서 복사
 	}
-	return success;
+	// 만약 uninit이 아닌 경우 setup_stack()함수에서 했던 것처럼 페이지를 생성한뒤
+	// 바로 해당 페이지의 타입에 맞는 initializer를 호출해 페이지 타입을 변경시켜줍니다.
+	// 그리고 나서 부모페이지의 물리 메모리 정보를 자식에게도 복사해주어야 합니다.
+
+	return true;
 }
-// v2
-// bool supplemental_page_table_copy(struct supplemental_page_table *dst UNUSED,
-// 								  struct supplemental_page_table *src UNUSED)
-// {
-// 	struct hash_iterator i;
-// 	hash_first(&i, &src->spt_hash); // i 초기화
-
-// 	while (hash_next(&i))
-// 	{ // next가 있는동안, vm_page_with_initiater 인자참고
-// 		struct page *parent_page = hash_entry(hash_cur(&i), struct page, hash_elem);
-
-// 		enum vm_type type = page_get_type(parent_page);
-// 		void *upage = parent_page->va;
-// 		bool writable = parent_page->writable;
-// 		vm_initializer *init = parent_page->uninit.init;
-// 		void *aux = parent_page->uninit.aux;
-
-// 		// vm_alloc_page_with_initializer(type, upage, writable, init, aux);
-// 		// 부모 페이지들의 정보를 저장한 뒤,자식이 가질 새로운 페이지를 생성해야합니다.생성을 위해 부모 페이지의 타입을 먼저 검사합니다.즉,부모 페이지가UNINIT 페이지인 경우와 그렇지 않은 경우를 나누어 페이지를 생성해줘야합니다.
-// 		if (!vm_alloc_page_with_initializer(type, upage, writable, init, aux))
-// 			return false;
-
-// 		struct page *child_page = spt_find_page(dst, upage); // 부모 주소 찾아서 복사.
-
-// 		if (child_page->frame != NULL)
-// 		{
-// 			if (!vm_do_claim_page(child_page))
-// 				return false;
-// 			memcpy(child_page->frame->kva, parent_page->frame->kva, PGSIZE);
-// 		}
-// 	}
-// 	return true;
-// }
-/* 보조 페이지 표를 src에서 dst 로 복사합니다*/
-// bool supplemental_page_table_copy(struct supplemental_page_table *dst UNUSED,
-// 								  struct supplemental_page_table *src UNUSED)
-// {
-
-// 	struct hash_iterator i;
-// 	hash_first(&i, &src->spt_hash); // i 초기화
-
-// 	struct page *parent_page = hash_entry(hash_cur(&i), struct page, hash_elem);
-// 	bool success = false;
-
-// 	enum vm_type type = page_get_type(parent_page);
-// 	void *upage = parent_page->va;
-// 	bool writable = parent_page->writable;
-// 	vm_initializer *init = parent_page->uninit.init;
-// 	void *aux = parent_page->uninit.aux;
-// 	while (hash_next(&i))
-// 	{ // next가 있는동안, vm_page_with_initiater 인자참고
-
-// 		success = vm_alloc_page_with_initializer(type, upage, writable, init, aux);
-// 		// vm_alloc_page_with_initializer(type, upage, writable, init, aux);
-// 		// 부모 페이지들의 정보를 저장한 뒤,자식이 가질 새로운 페이지를 생성해야합니다.생성을 위해 부모 페이지의 타입을 먼저 검사합니다.즉,부모 페이지가UNINIT 페이지인 경우와 그렇지 않은 경우를 나누어 페이지를 생성해줘야합니다.
-// 		if (!success)
-// 		{
-// 			return false;
-// 		}
-// 		struct page *child_page = spt_find_page(dst, upage);
-// 		if (parent_page->frame)
-// 		{
-// 			success = vm_do_claim_page(child_page);
-// 			if (!success)
-// 			{
-// 				return false;
-// 			}
-// 			memcpy(child_page->frame->kva, parent_page->frame->kva, PGSIZE);
-// 		}
-// 		// 부모 주소로 찾아서 복사
-// 	}
-// 	// 만약 uninit이 아닌 경우 setup_stack()함수에서 했던 것처럼 페이지를 생성한뒤
-// 	// 바로 해당 페이지의 타입에 맞는 initializer를 호출해 페이지 타입을 변경시켜줍니다.
-// 	// 그리고 나서 부모페이지의 물리 메모리 정보를 자식에게도 복사해주어야 합니다.
-
-// 	return true;
-// }
 
 /* 추가 페이지 테이블에서 리소스 보류 해제 */
 void supplemental_page_table_kill(struct supplemental_page_table *spt UNUSED)
@@ -454,19 +358,20 @@ void supplemental_page_table_kill(struct supplemental_page_table *spt UNUSED)
 	/* TODO: Destroy all the supplemental_page_table hold by thread and
 	 * TODO: writeback all the modified contents to the storage. */
 	// struct hash_iterator i;
-
+	// struct frame *frame;
 	// hash_first(&i, &spt->spt_hash);
 	// while (hash_next(&i))
 	// {
 	// 	struct page *page = hash_entry(hash_cur(&i), struct page, hash_elem);
-
-	// 	// if (page->operations->type == VM_FILE){
-	// 	// munmap(page->va);
-	// 	// }
-
-	// 	hash_destroy(&spt->spt_hash, remove_spt);
+	// 	frame = page->frame;
+	// 	if (page->operations->type == VM_FILE)
+	// 	{
+	// 		do_munmap(page->va);
+	// 	}
 	// }
+
 	hash_destroy(&spt->spt_hash, remove_spt);
+	// free(frame);
 }
 
 void remove_spt(struct hash_elem *elem, void *aux)

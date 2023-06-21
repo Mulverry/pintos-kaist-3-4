@@ -1,13 +1,17 @@
 {
-    "files.associations": {
-        "syscall.h": "c",
-        "atomic": "c",
-        "cstring": "c",
-        "__string": "c",
-        "memory": "c",
-        "__threading_support": "c",
-        "thread": "c",
-        "__mutex_base": "c",
-        "*.inc": "c"
-    }
+  "files.associations": {
+    "syscall.h": "c",
+    "atomic": "c",
+    "cstring": "c",
+    "__string": "c",
+    "memory": "c",
+    "__threading_support": "c",
+    "thread": "c",
+    "__mutex_base": "c",
+    "*.inc": "c",
+    "process.h": "c",
+    "__config": "c",
+    "chrono": "c",
+    "algorithm": "c"
+  }
 }

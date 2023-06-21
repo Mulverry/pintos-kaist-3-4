@@ -775,8 +775,7 @@ bool install_page(void *upage, void *kpage, bool writable)
 //     * address, then map our page there. */
 //    return (pml4_get_page(t->pml4, upage) == NULL && pml4_set_page(t->pml4, upage, kpage, writable));
 // }
-static bool
-lazy_load_segment(struct page *page, void *aux)
+bool lazy_load_segment(struct page *page, void *aux)
 {
    /* TODO: Load the segment from the file */
    /* TODO: This called when the first page fault occurs on address VA. */
@@ -838,7 +837,8 @@ load_segment(struct file *file, off_t ofs, uint8_t *upage,
       seg->file = file;
       seg->ofs = ofs;
       seg->read_bytes = page_read_bytes;
-
+      //Sangju 추가
+      seg->file_cnt = 0;
       if (!vm_alloc_page_with_initializer(VM_ANON, upage,
                                           writable, lazy_load_segment, seg))
          return false;
@@ -870,7 +870,7 @@ setup_stack(struct intr_frame *if_)
       if (success)
       {
          if_->rsp = (uintptr_t)USER_STACK;
-         // thread_current()->stack_bottom = stack_bottom;
+         thread_current()->stack_bottom = stack_bottom;
       }
    }
    return success;
