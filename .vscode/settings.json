@@ -1,12 +1,12 @@
 {
-    "files.associations": {
-        "vm.h": "c",
-        "palloc.h": "c",
-        "string.h": "c",
-        "gdt.h": "c",
-        "tss.h": "c",
-        "process.h": "c",
-        "compare": "c",
-        "inspect.h": "c"
-    }
+  "files.associations": {
+    "stdint.h": "c",
+    "uninit.h": "c",
+    "malloc.h": "c",
+    "vm.h": "c",
+    "inspect.h": "c",
+    "vaddr.h": "c",
+    "process.h": "c",
+    "mmu.h": "c"
+  }
 }

@@ -6,7 +6,6 @@
 #include <stdint.h>
 #include "threads/interrupt.h"
 #include "threads/synch.h"
-#define VM
 #ifdef VM
 #include "vm/vm.h"
 #endif
@@ -32,7 +31,7 @@ typedef int tid_t;
 
 /* File descriptor*/
 #define FD_MIN 2                       /* Lowest File descriptor */
-#define FD_MAX 63                      /* Highest File descriptor */
+#define FD_MAX 127                      /* Highest File descriptor */
 
 #define STDIN_FILENO	0
 #define STDOUT_FILENO	1
@@ -104,7 +103,7 @@ struct thread {
    struct lock *wait_on_lock;          // 해당 쓰레드가 대기하고 있는 lock자료구조의 주소를 저장할 필드
    struct list list_donation;          // multiple donation을 고려하기 위한 리스트
    struct list_elem d_elem;           // 해당 리스트를 위한 elem도 추가
-   struct file *fdt[64];            // 파일 디스크립터 테이블
+   struct file **fdt;            // 파일 디스크립터 테이블
    int next_fd;                  // 테이블 중 비어있는 곳 
    struct list child_list;          // 자식 스레드 리스트
    struct list_elem child_elem;       // 자식 스레드 리스트를 위한 elem
@@ -116,14 +115,9 @@ struct thread {
    struct semaphore free_sema;
    
    int exit_flag;                  // 스레드 종료 확인을 위한 플래그
-   int exit_status;
    int load_flag;                  
-   
-   struct file *running_file;
 
-   // NOTE: For Advanced Scheduler 
-   int nice;
-   int recent_cpu;
+   struct file *running_file;   
 
    /* Shared between thread.c and synch.c. */
    struct list_elem elem;              /* List element. */

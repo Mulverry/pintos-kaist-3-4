@@ -43,29 +43,29 @@ static struct lock tid_lock;
 static struct list destruction_req;
 
 /* Statistics. */
-static long long idle_ticks;   /* # of timer ticks spent idle. */
-static long long kernel_ticks; /* # of timer ticks in kernel threads. */
-static long long user_ticks;   /* # of timer ticks in user programs. */
+static long long idle_ticks;    /* # of timer ticks spent idle. */
+static long long kernel_ticks;  /* # of timer ticks in kernel threads. */
+static long long user_ticks;    /* # of timer ticks in user programs. */
 
 /* Scheduling. */
-#define TIME_SLICE 4          /* # of timer ticks to give each thread. */
-static unsigned thread_ticks; /* # of timer ticks since last yield. */
+#define TIME_SLICE 4            /* # of timer ticks to give each thread. */
+static unsigned thread_ticks;   /* # of timer ticks since last yield. */
 
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.
    Controlled by kernel command-line option "-o mlfqs". */
 bool thread_mlfqs;
 
-static void kernel_thread(thread_func *, void *aux);
+static void kernel_thread (thread_func *, void *aux);
 
-static void idle(void *aux UNUSED);
-static struct thread *next_thread_to_run(void);
-static void init_thread(struct thread *, const char *name, int priority);
+static void idle (void *aux UNUSED);
+static struct thread *next_thread_to_run (void);
+static void init_thread (struct thread *, const char *name, int priority);
 static void do_schedule(int status);
-static void schedule(void);
-static tid_t allocate_tid(void);
+static void schedule (void);
+static tid_t allocate_tid (void);
 void wakeup(int64_t g_ticks);
-bool cmp_priority(const struct list_elem *a_elem, const struct list_elem *b_elem, void *aux);
+bool cmp_priority (const struct list_elem *a_elem, const struct list_elem *b_elem, void *aux);
 void refresh_priority(void);
 void donate_priority(void);
 
@@ -77,12 +77,13 @@ void donate_priority(void);
  * down to the start of a page.  Since `struct thread' is
  * always at the beginning of a page and the stack pointer is
  * somewhere in the middle, this locates the curent thread. */
-#define running_thread() ((struct thread *)(pg_round_down(rrsp())))
+#define running_thread() ((struct thread *) (pg_round_down (rrsp ())))
+
 
 // Global descriptor table for the thread_start.
 // Because the gdt will be setup after the thread_init, we should
 // setup temporal gdt first.
-static uint64_t gdt[3] = {0, 0x00af9a000000ffff, 0x00cf92000000ffff};
+static uint64_t gdt[3] = { 0, 0x00af9a000000ffff, 0x00cf92000000ffff };
 
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
@@ -97,52 +98,53 @@ static uint64_t gdt[3] = {0, 0x00af9a000000ffff, 0x00cf92000000ffff};
 
    It is not safe to call thread_current() until this function
    finishes. */
-void thread_init(void)
-{
-   ASSERT(intr_get_level() == INTR_OFF);
+void
+thread_init (void) {
+	ASSERT (intr_get_level () == INTR_OFF);
 
-   /* Reload the temporal gdt for the kernel
-    * This gdt does not include the user context.
-    * The kernel will rebuild the gdt with user context, in gdt_init (). */
-   struct desc_ptr gdt_ds = {
-       .size = sizeof(gdt) - 1,
-       .address = (uint64_t)gdt};
-   lgdt(&gdt_ds);
+	/* Reload the temporal gdt for the kernel
+	 * This gdt does not include the user context.
+	 * The kernel will rebuild the gdt with user context, in gdt_init (). */
+	struct desc_ptr gdt_ds = {
+		.size = sizeof (gdt) - 1,
+		.address = (uint64_t) gdt
+	};
+	lgdt (&gdt_ds);
 
-   /* Init the globla thread context */
-   lock_init(&tid_lock);
-   list_init(&ready_list);
-   list_init(&sleep_list);
-   list_init(&destruction_req);
+	/* Init the globla thread context */
+	lock_init (&tid_lock);
+	list_init (&ready_list);
+	list_init (&sleep_list);
+	list_init (&destruction_req);
 
-   /* Set up a thread structure for the running thread. */
-   initial_thread = running_thread();
-   init_thread(initial_thread, "main", PRI_DEFAULT);
-   initial_thread->status = THREAD_RUNNING;
-   initial_thread->tid = allocate_tid();
+	/* Set up a thread structure for the running thread. */
+	initial_thread = running_thread ();
+	init_thread (initial_thread, "main", PRI_DEFAULT);
+	initial_thread->status = THREAD_RUNNING;
+	initial_thread->tid = allocate_tid ();
 }
 
 /* Starts preemptive thread scheduling by enabling interrupts.
    Also creates the idle thread. */
-void thread_start(void)
-{
-   /* Create the idle thread. */
-   struct semaphore idle_started;
-   sema_init(&idle_started, 0);
-   thread_create("idle", PRI_MIN, idle, &idle_started);
+void
+thread_start (void) {
+	/* Create the idle thread. */
+	struct semaphore idle_started;
+	sema_init (&idle_started, 0);
+	thread_create ("idle", PRI_MIN, idle, &idle_started);
 
-   /* Start preemptive thread scheduling. */
-   intr_enable();
+	/* Start preemptive thread scheduling. */
+	intr_enable ();
 
-   /* Wait for the idle thread to initialize idle_thread. */
-   sema_down(&idle_started);
+	/* Wait for the idle thread to initialize idle_thread. */
+	sema_down (&idle_started);
 }
 
 /* Called by the timer interrupt handler at each timer tick.
    Thus, this function runs in an external interrupt context. */
-void thread_tick(void)
-{
-   struct thread *t = thread_current();
+void
+thread_tick (void) {
+	struct thread *t = thread_current ();
 
    /* Update statistics. */
    if (t == idle_thread)
@@ -198,29 +200,28 @@ tid_t thread_create(const char *name, int priority,
    init_thread(t, name, priority); /* thread 구조체 초기화*/
    tid = t->tid = allocate_tid();  /* tid 할당 */
 
-   struct file **new_fdt = (struct file **)palloc_get_page(PAL_ZERO);
-   *t->fdt = new_fdt;
+	struct file **new_fdt = (struct file **)palloc_get_multiple(PAL_ZERO,3);
+	t->fdt = new_fdt;
 
-   /* Call the kernel_thread if it scheduled.
-    * Note) rdi is 1st argument, and rsi is 2nd argument. */
-   t->tf.rip = (uintptr_t)kernel_thread; /* 커널 스택 할당 */
-   t->tf.R.rdi = (uint64_t)function;     /* 스레드가 수행할 함수 */
-   t->tf.R.rsi = (uint64_t)aux;          /* 수행할 함수의 인자 */
-   t->tf.ds = SEL_KDSEG;
-   t->tf.es = SEL_KDSEG;
-   t->tf.ss = SEL_KDSEG;
-   t->tf.cs = SEL_KCSEG;
-   t->tf.eflags = FLAG_IF;
+	/* Call the kernel_thread if it scheduled.
+	 * Note) rdi is 1st argument, and rsi is 2nd argument. */
+	t->tf.rip = (uintptr_t) kernel_thread; /* 커널 스택 할당 */
+	t->tf.R.rdi = (uint64_t) function; /* 스레드가 수행할 함수 */
+	t->tf.R.rsi = (uint64_t) aux; /* 수행할 함수의 인자 */
+	t->tf.ds = SEL_KDSEG;
+	t->tf.es = SEL_KDSEG;
+	t->tf.ss = SEL_KDSEG;
+	t->tf.cs = SEL_KCSEG;
+	t->tf.eflags = FLAG_IF;
 
-   /* Add to run queue. */
-   thread_unblock(t);
-
-   list_push_back(&thread_current()->child_list, &t->child_elem);
-   /* compare the priorities of the currently running thread and the newly inserted one. Yield the CPU if the newly arriving thread has higher priority*/
-   if (thread_get_priority() < t->priority)
-   {
-      thread_yield();
-   }
+	/* Add to run queue. */
+	thread_unblock (t);
+	
+	list_push_back(&thread_current()->child_list,&t->child_elem);
+	/* compare the priorities of the currently running thread and the newly inserted one. Yield the CPU if the newly arriving thread has higher priority*/
+	if (thread_get_priority() < t->priority) {
+		thread_yield();
+	}
 
    return tid;
 }
@@ -476,13 +477,10 @@ idle(void *idle_started_ UNUSED)
          one to occur, wasting as much as one clock tick worth of
          time.
 
-         See [IA32-v2a] "HLT", [IA32-v2b] "STI", and [IA32-v3a]
-         7.11.1 "HLT Instruction". */
-      asm volatile("sti; hlt"
-                   :
-                   :
-                   : "memory");
-   }
+		   See [IA32-v2a] "HLT", [IA32-v2b] "STI", and [IA32-v3a]
+		   7.11.1 "HLT Instruction". */
+		asm volatile ("sti; hlt" : : : "memory");
+	}
 }
 
 /* Function used as the basis for a kernel thread. */
@@ -505,21 +503,21 @@ init_thread(struct thread *t, const char *name, int priority)
    ASSERT(PRI_MIN <= priority && priority <= PRI_MAX);
    ASSERT(name != NULL);
 
-   memset(t, 0, sizeof *t);
-   t->status = THREAD_BLOCKED;
-   strlcpy(t->name, name, sizeof t->name);
-   t->tf.rsp = (uint64_t)t + PGSIZE - sizeof(void *);
-   t->priority = priority;
-   t->magic = THREAD_MAGIC;
-   t->pre_priority = priority;
-   t->wait_on_lock = NULL;
-   t->exit_flag = 1;
-   t->next_fd = 2;
-   list_init(&t->list_donation);
-   list_init(&t->child_list);
-   sema_init(&t->load_sema, 0);
-   sema_init(&t->exit_sema, 0);
-   sema_init(&t->free_sema, 0);
+	memset (t, 0, sizeof *t);
+	t->status = THREAD_BLOCKED;
+	strlcpy (t->name, name, sizeof t->name);
+	t->tf.rsp = (uint64_t) t + PGSIZE - sizeof (void *);
+	t->priority = priority;
+	t->magic = THREAD_MAGIC;
+	t->pre_priority = priority;
+	t->wait_on_lock = NULL;
+	t->exit_flag = 1;
+	t->next_fd = 2;
+	list_init(&t->list_donation);
+	list_init(&t->child_list);
+	sema_init(&t->load_sema,0);
+	sema_init(&t->exit_sema,0);
+	sema_init(&t->free_sema,0);
 }
 
 /* Chooses and returns the next thread to be scheduled.  Should

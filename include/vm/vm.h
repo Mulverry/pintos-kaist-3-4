@@ -2,7 +2,7 @@
 #define VM_VM_H
 #include <stdbool.h>
 #include "threads/palloc.h"
-#include "lib/kernel/hash.h"
+#include "kernel/hash.h"
 
 enum vm_type {
 	/* page not initialized */
@@ -63,13 +63,13 @@ struct page {
 };
 
 /* The representation of "frame" */
+struct list frame_list; // frame을 가지고 있는 물리메모리를 list로 다루기.
+
 struct frame {
 	void *kva;
 	struct page *page;
 	struct list_elem frame_elem;
 };
-
-struct list frame_table;
 
 /* The function table for page operations.
  * This is one way of implementing "interface" in C.
@@ -115,5 +115,6 @@ bool vm_alloc_page_with_initializer (enum vm_type type, void *upage,
 void vm_dealloc_page (struct page *page);
 bool vm_claim_page (void *va);
 enum vm_type page_get_type (struct page *page);
+void remove_spt(struct hash_elem *elem, void* aux);
 
 #endif  /* VM_VM_H */
