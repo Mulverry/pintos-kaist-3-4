@@ -7,6 +7,13 @@
     "inspect.h": "c",
     "vaddr.h": "c",
     "process.h": "c",
-    "mmu.h": "c"
+    "mmu.h": "c",
+    "debug.h": "c",
+    "thread.h": "c",
+    "round.h": "c",
+    "syscall.h": "c",
+    "interrupt.h": "c",
+    "flags.h": "c",
+    "filesys.h": "c"
   }
 }

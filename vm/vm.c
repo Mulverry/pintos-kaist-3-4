@@ -8,12 +8,14 @@
 #include "threads/mmu.h"
 #include "threads/thread.h"
 #include <string.h>
+
 uint64_t hash_func(const struct hash_elem *p_elem, void *aux UNUSED);
 bool less_func(const struct hash_elem *a, const struct hash_elem *b, void *aux);
 void spt_dealloc(struct hash_elem *e, void *aux);
 void remove_spt(struct hash_elem *elem, void *aux);
 bool install_page(void *upage, void *kpage, bool writable);
 static void vm_stack_growth(void *addr UNUSED);
+
 struct list frame_table;
 struct lock frame_lock; // lock_aquire(), realese용
 /* Initializes the virtual memory subsystem by invoking each subsystem's
