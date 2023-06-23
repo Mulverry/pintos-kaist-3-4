@@ -14,6 +14,9 @@
     "syscall.h": "c",
     "interrupt.h": "c",
     "flags.h": "c",
-    "filesys.h": "c"
+    "filesys.h": "c",
+    "disk.h": "c",
+    "stddef.h": "c",
+    "bitmap.h": "c"
   }
 }

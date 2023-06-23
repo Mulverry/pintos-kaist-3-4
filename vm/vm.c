@@ -170,30 +170,10 @@ static bool
 vm_handle_wp(struct page *page UNUSED){
 }
 
-// bool vm_try_handle_fault(struct intr_frame *f UNUSED, void *addr UNUSED, bool user UNUSED, bool write UNUSED, bool not_present UNUSED){
-// 	struct supplemental_page_table *spt UNUSED = &thread_current()->spt;
-// 	struct page *page = NULL;
-// 	/* TODO: Validate the fault */
-// 	/* TODO: Your code goes here */
-// 	bool success = false;
-// 	if (is_kernel_vaddr(addr) || addr == NULL)
-// 		return false;
-
-// 	page = spt_find_page(spt, addr);
-// 	if (page == NULL)
-// 		return false;
-// 	else{
-// 		success = vm_do_claim_page(page);
-// 		return success;
-// 	}
-// 	return success;
-// }
-
-bool
-vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,
+//페이지 폴트가 발생했을 때 호출되며, 해당 폴트를 처리하는 역할
+bool vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,
 		bool user UNUSED, bool write UNUSED, bool not_present UNUSED) {
 	/* TODO: Validate the fault */
-	/* TODO: Your code goes here */
 	if(is_kernel_vaddr(addr) || !addr) return false;
 
 	void* rsp_stack;
@@ -212,31 +192,6 @@ vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,
 	return vm_claim_page(addr);
 }
 
-// bool
-// vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED, bool user UNUSED, bool write UNUSED, bool not_present UNUSED){
-// 	struct supplemental_page_table *spt UNUSED = &thread_current()->spt;
-// 	struct page *page = NULL;
-
-// 	bool success = false;
-// 	if(is_kernel_vaddr(addr)) return false;
-
-// 	page = spt_find_page(spt, addr);
-// 	if(page == NULL) return false;
-// 	if(not_present){
-// 		if(!vm_claim_page(addr)){
-// 			if (f->rsp - 8 <= addr && addr < USER_STACK && thread_current()->stack_bottom > addr && USER_STACK - (1 << 20) < addr){
-// 				vm_stack_growth(thread_current()->stack_bottom - PGSIZE);
-// 			}
-// 			return false;
-// 		}else{
-// 			return true;
-// 		}
-// 	}else{
-// 		success = vm_do_claim_page(page);
-// 		return success;
-// 	}
-// 	return success;
-// }
 
 /* Free the page.
  * DO NOT MODIFY THIS FUNCTION. */

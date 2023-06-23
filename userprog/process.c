@@ -134,6 +134,7 @@ duplicate_pte(uint64_t *pte, void *va, void *aux)
 	/* 3. TODO: Allocate new PAL_USER page for the child and set result to
 	 *    TODO: NEWPAGE. */
 	newpage = palloc_get_page(PAL_USER);
+   if (newpage == NULL) return false;
 	/* 4. TODO: Duplicate parent's page to the new page and
 	 *    TODO: check whether parent's page is writable or not (set WRITABLE
 	 *    TODO: according to the result). */
@@ -371,8 +372,13 @@ void process_exit(void)
 	struct thread *cur = thread_current();
 	for (int i = 2; i < 64; i++)
 		close(i);
-	palloc_free_multiple(cur->fdt,2);
-	cur->fdt = NULL;
+	// palloc_free_multiple(cur->fdt,2);
+	// cur->fdt = NULL;
+#ifdef VM
+   if (!hash_empty(&cur->spt.spt_hash)){
+      iter_mummap(&cur->spt.spt_hash);
+   }
+#endif
 	file_close(cur->running_file);
 	sema_up(&cur->exit_sema);
 	sema_down(&cur->free_sema);
@@ -759,6 +765,7 @@ bool lazy_load_segment (struct page *page, void *aux) {
 	file_seek(file, ofs);
 	if(file_read(file, page->frame->kva, read_bytes) != (int)read_bytes){
 		palloc_free_page(page->frame->kva);
+      free(aux);
 		return false;
 	}
 	memset(page->frame->kva + read_bytes, 0, zero_bytes);
@@ -822,7 +829,7 @@ setup_stack (struct intr_frame *if_) {
 	if (vm_alloc_page(VM_ANON | VM_MARKER_0, stack_bottom, true)){
 		success = vm_claim_page(stack_bottom);
 		if (success){
-			if_->rsp = (uintptr_t)USER_STACK;
+			if_->rsp = USER_STACK;
 			thread_current()->stack_bottom = stack_bottom;
 		}
 	}

@@ -173,14 +173,14 @@ disk_print_stats (void) {
 	}
 }
 
-/* Returns the disk numbered DEV_NO--either 0 or 1 for master or
-   slave, respectively--within the channel numbered CHAN_NO.
+/* 마스터 또는 슬레이브의 경우 각각 0 또는 1인 DEV_NO 번호의 디스크를 반환합니다.
+   슬레이브의 경우 각각 0 또는 1을 반환합니다(채널 번호는 CHAN_NO).
 
-   Pintos uses disks this way:
-0:0 - boot loader, command line args, and operating system kernel
-0:1 - file system
-1:0 - scratch
-1:1 - swap
+   핀토스는 이런 방식으로 디스크를 사용합니다:
+0:0 - 부트 로더, 명령줄 인수 및 운영 체제 커널
+0:1 - 파일 시스템
+1:0 - 스크래치
+1:1 - 스왑
 */
 struct disk *
 disk_get (int chan_no, int dev_no) {
@@ -249,7 +249,7 @@ disk_write (struct disk *d, disk_sector_t sec_no, const void *buffer) {
 	d->write_cnt++;
 	lock_release (&c->lock);
 }
-
+
 /* Disk detection and identification. */
 
 static void print_ata_string (char *string, size_t size);
