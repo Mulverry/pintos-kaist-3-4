@@ -391,5 +391,5 @@ void *mmap (void *addr, size_t length, int writable, int fd, off_t offset){
 }
 
 void munmap (void *addr){
-   return do_munmap(addr);
+  	do_munmap(addr);
 }

@@ -113,7 +113,8 @@ void spt_remove_page(struct supplemental_page_table *spt, struct page *page){
 // /* Get the struct frame, that will be evicted. */
 static struct frame *
 vm_get_victim(void){
-	struct frame *victim = list_pop_front(&frame_table);
+	// struct frame *victim = list_pop_front(&frame_table);
+	struct frame *victim = NULL;
 	/* TODO: The policy for eviction is up to you. */
 
 	return victim;
@@ -160,7 +161,7 @@ pg_round_down 함수를 쓰면 페이지 단위로 가상 주소를 정렬할 �
 static void
 vm_stack_growth(void *addr UNUSED){
 	struct thread *curr = thread_current();
-	if(vm_alloc_page_with_initializer(VM_ANON, pg_round_down(addr), true, NULL, NULL)){
+	if(vm_alloc_page(VM_ANON, pg_round_down(addr), true)){
 		curr->stack_bottom -= PGSIZE;
 	}
 }
@@ -203,7 +204,7 @@ vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,
 		rsp_stack = f->rsp;
 	}
 
-	if(not_present){
+	if(not_present){ // 유저 스택내에 존재하는지, fault 발생 주소가 스택 포인터 아래 8byte 위치하는지.
 		if (USER_STACK - (1 << 20) <= addr && addr < USER_STACK && rsp_stack - 8 <= addr && thread_current()->stack_bottom > addr){
 			addr = thread_current()->stack_bottom - PGSIZE;
 			vm_stack_growth(addr);
@@ -212,31 +213,6 @@ vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,
 	return vm_claim_page(addr);
 }
 
-// bool
-// vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED, bool user UNUSED, bool write UNUSED, bool not_present UNUSED){
-// 	struct supplemental_page_table *spt UNUSED = &thread_current()->spt;
-// 	struct page *page = NULL;
-
-// 	bool success = false;
-// 	if(is_kernel_vaddr(addr)) return false;
-
-// 	page = spt_find_page(spt, addr);
-// 	if(page == NULL) return false;
-// 	if(not_present){
-// 		if(!vm_claim_page(addr)){
-// 			if (f->rsp - 8 <= addr && addr < USER_STACK && thread_current()->stack_bottom > addr && USER_STACK - (1 << 20) < addr){
-// 				vm_stack_growth(thread_current()->stack_bottom - PGSIZE);
-// 			}
-// 			return false;
-// 		}else{
-// 			return true;
-// 		}
-// 	}else{
-// 		success = vm_do_claim_page(page);
-// 		return success;
-// 	}
-// 	return success;
-// }
 
 /* Free the page.
  * DO NOT MODIFY THIS FUNCTION. */
@@ -260,6 +236,7 @@ bool vm_claim_page(void *va UNUSED){
 /* Claim the PAGE and set up the mmu. */
 static bool
 vm_do_claim_page(struct page *page){
+	struct thread *t = thread_current();
 	struct frame *frame = vm_get_frame();
 	if (frame == NULL){
 		return false;
@@ -271,10 +248,12 @@ vm_do_claim_page(struct page *page){
 	/* TODO: Insert page table entry to map page's VA to frame's PA. */
 	// 성공적으로 page가 매핑됐을 경우, 해당 page와 물리메모리 연결.
 	// install_page함수 -> 가상메모리와 물리메모리를 매핑하는 함수.
-	// (pml4_get_page(t->pml4, upage) == NULL && pml4_set_page(t->pml4, upage, kpage, writable))
-	if (install_page(page->va, frame->kva, page->writable)){
-		return swap_in(page, frame->kva); // 매핑 성공시 swap-in
+	if (pml4_get_page(t->pml4, page->va) == NULL && pml4_set_page(t->pml4, page->va, frame->kva, page->writable)){
+		return swap_in(page, frame->kva);
 	}
+	// if (install_page(page->va, frame->kva, page->writable)){
+	// 	return swap_in(page, frame->kva); // 매핑 성공시 swap-in
+	// }
 	return false;
 }
 
@@ -330,5 +309,5 @@ void supplemental_page_table_kill(struct supplemental_page_table *spt UNUSED){
 
 void remove_spt(struct hash_elem *elem, void *aux){
 	struct page *page = hash_entry(elem, struct page, hash_elem);
-	vm_dealloc_page(page);
+	free(page);
 }
