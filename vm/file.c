@@ -61,7 +61,7 @@ void *do_mmap (void *addr, size_t length, int writable,
 	if (length % PGSIZE != 0){
 		cnt = (length / PGSIZE) + 1;
 	} else {
-		cnt = length / PGSIZE;
+		cnt = (length / PGSIZE);
 	}
 
 	size_t read_bytes;
@@ -110,9 +110,11 @@ void do_munmap (void *addr) {
 		struct page *p = spt_find_page(&t->spt, addr + (PGSIZE * i));
 		if (pml4_is_dirty(t->pml4, addr)){
 			file_seek(seg->file, seg->ofs);
-			file_write(seg->file, addr, seg->page_read_bytes);
+			// file_write(seg->file, addr, seg->page_read_bytes);
+			file_write_at(seg->file, addr, seg->page_read_bytes, seg->ofs);
 			pml4_set_dirty(t->pml4, addr, false);
 		}
 		pml4_clear_page(t->pml4, addr);
+		addr += PGSIZE; // YEONJU 추가 6.23.
 	}
 }
