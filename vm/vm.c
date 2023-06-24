@@ -15,6 +15,7 @@ void spt_dealloc(struct hash_elem *e, void *aux);
 void remove_spt(struct hash_elem *elem, void *aux);
 bool install_page(void *upage, void *kpage, bool writable);
 static void vm_stack_growth(void *addr UNUSED);
+void iter_munmap(struct supplemental_page_table *spt);
 
 struct list frame_table;
 struct lock frame_lock; // lock_aquire(), realese용
@@ -71,6 +72,8 @@ bool vm_alloc_page_with_initializer(enum vm_type type, void *upage, bool writabl
 			case VM_FILE:
 				uninit_new(page, upage, init, type, aux, file_backed_initializer);
 				break;
+			case default:
+				break;
 		}
 		page->writable = writable;
 		return spt_insert_page(spt, page);
@@ -116,7 +119,17 @@ vm_get_victim(void){
 	// struct frame *victim = list_pop_front(&frame_table);
 	struct frame *victim = NULL;
 	/* TODO: The policy for eviction is up to you. */
-
+	struct thread *curr = thread_current();
+	struct list_elem* elem;
+	for (elem = list_begin(&frame_table); elem != list_end(&frame_table); elem = list_next(elem)) {		
+    	victim = list_entry(elem, struct frame, frame_elem);
+        // 현재 frame의 PTE가 최근에 접근되었는지 확인
+    	if (!pml4_is_accessed(curr->pml4, victim->page->va)) {
+        	break; 
+    	}
+		pml4_set_accessed(curr->pml4, victim->page->va, 0);
+		list_push_back(&frame_table, elem);
+    }
 	return victim;
 }
 /* Evict one page and return the corresponding frame.
@@ -141,10 +154,11 @@ vm_get_frame(void){
 	// 반환받은 주소를 frame 구조체에 할당
 	frame->kva = palloc_get_page(PAL_USER);
 	if (frame->kva == NULL){
-		PANIC("todo");
+		frame = vm_evict_frame();
 	}
 	/* TODO: Fill this function. */
 	frame->page = NULL;
+	list_push_back(&frame_table, &frame->frame_elem);
 
 	ASSERT(frame != NULL);
 	ASSERT(frame->page == NULL);
@@ -290,4 +304,16 @@ void supplemental_page_table_kill(struct supplemental_page_table *spt UNUSED){
 void remove_spt(struct hash_elem *elem, void *aux){
 	struct page *page = hash_entry(elem, struct page, hash_elem);
 	free(page);
+}
+
+void iter_munmap(struct supplemental_page_table *spt){
+	struct hash_iterator i;
+	struct page* target;
+	hash_first(&i, &spt->spt_hash);
+	while (hash_next(&i)){
+		target = hash_entry(hash_cur(&i), struct page, hash_elem);
+		if (target->operations->type == VM_FILE){
+			do_munmap(target->va);
+		}
+	}
 }

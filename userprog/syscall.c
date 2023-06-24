@@ -116,7 +116,7 @@ void syscall_handler(struct intr_frame *f UNUSED)
 		f->R.rax = read(f->R.rdi, f->R.rsi, f->R.rdx);
 		break;
 	case SYS_WRITE: /* Write to a file. */
-		f->R.rax = writable(f->R.rdi, f->R.rsi, f->R.rdx);
+		f->R.rax = write(f->R.rdi, f->R.rsi, f->R.rdx);
 		break;
 	case SYS_SEEK: /* Change position in a file. */
 		seek(f->R.rdi, f->R.rsi);
@@ -293,7 +293,7 @@ buffer로부터 open file fd로 size 바이트를 적어줍니다.
 실제로 적힌 바이트의 수를 반환해주고,
 일부 바이트가 적히지 못했다면 size보다 더 작은 바이트 수가 반환될 수 있습니다.
 */
-int writable(int fd, const void *buffer, unsigned size)
+int write(int fd, const void *buffer, unsigned size)
 {
 	check_buffer(buffer, size, false);
 	int file_size;
@@ -370,7 +370,7 @@ struct page* check_address(void *addr)
 }
 
 void check_buffer(void* buffer, unsigned size, bool writable){
-	for(char i = 0; i <= size; i++){
+	for(char i = 0; i < size; i++){
 		struct page *page = check_address(buffer + i);
 		if(page == NULL) exit(-1);
 		if(writable == true && page->writable == false) exit(-1);
@@ -386,10 +386,13 @@ void *mmap (void *addr, size_t length, int writable, int fd, off_t offset){
     struct file *file = process_get_file(fd);
     if (file == NULL) return NULL;
 
+	// process_get_file로 열었던 파일을 file_reopen을 통해 새로운 fd로 여는 이유는
+	// 매핑된 파일을 여러번 열어서 사용할 경우가 있기 때문이다.
+	// 즉, 동일한 파일을 여러 프로세스 간에 매핑하기 위해서이다.
 	file = file_reopen(file);
 	if (file == NULL) return NULL;
 
-	off_t file_len = file_length(file);
+	off_t file_len = file_length(file); // 파일 크기 검사: 잘못된 길이의 파일 매핑 방지
 	if (file_len <=0) return NULL;
 
     return do_mmap(addr, file_len, writable, file, offset);

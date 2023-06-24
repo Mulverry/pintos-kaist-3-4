@@ -136,7 +136,7 @@ file_allow_write (struct file *file) {
 	}
 }
 
-/* Returns the size of FILE in bytes. */
+/*  파일(파일 내용의 실제 길이)의 크기를 바이트 단위로 반환. */
 off_t
 file_length (struct file *file) {
 	ASSERT (file != NULL);

@@ -127,7 +127,7 @@ bitmap_size (const struct bitmap *b) {
 
 /* Setting and testing single bits. */
 
-/* Atomically sets the bit numbered IDX in B to VALUE. */
+/* 비트맵에서 특정 인덱스의 비트 값을 설정*/
 void
 bitmap_set (struct bitmap *b, size_t idx, bool value) {
 	ASSERT (b != NULL);
@@ -176,7 +176,8 @@ bitmap_flip (struct bitmap *b, size_t bit_idx) {
 	asm ("lock xorq %1, %0" : "=m" (b->bits[idx]) : "r" (mask) : "cc");
 }
 
-/* Returns the value of the bit numbered IDX in B. */
+/* Returns the value of the bit numbered IDX in B.
+주어진 비트맵 B에서 특정 인덱스 idx의 비트 값을 확인. */
 bool
 bitmap_test (const struct bitmap *b, size_t idx) {
 	ASSERT (b != NULL);
@@ -224,8 +225,7 @@ bitmap_count (const struct bitmap *b, size_t start, size_t cnt, bool value) {
 	return value_cnt;
 }
 
-/* Returns true if any bits in B between START and START + CNT,
-   exclusive, are set to VALUE, and false otherwise. */
+/* START와 START + CNT 사이에 배타적으로 B의 비트가 VALUE로 설정된 경우 참을 반환하고, 그렇지 않으면 거짓을 반환합니다. */
 bool
 bitmap_contains (const struct bitmap *b, size_t start, size_t cnt, bool value) {
 	size_t i;
@@ -240,8 +240,7 @@ bitmap_contains (const struct bitmap *b, size_t start, size_t cnt, bool value) {
 	return false;
 }
 
-/* Returns true if any bits in B between START and START + CNT,
-   exclusive, are set to true, and false otherwise.*/
+/* START와 START + CNT 사이의 B 비트가 배타적으로 참으로 설정되어 있으면 참을 반환하고, 그렇지 않으면 거짓을 반환합니다.*/
 bool
 bitmap_any (const struct bitmap *b, size_t start, size_t cnt) {
 	return bitmap_contains (b, start, cnt, true);
@@ -261,12 +260,13 @@ bitmap_all (const struct bitmap *b, size_t start, size_t cnt) {
 	return !bitmap_contains (b, start, cnt, false);
 }
 
-/* Finding set or unset bits. */
+/* 설정되거나 설정되지 않은 비트를 찾습니다. */
 
-/* Finds and returns the starting index of the first group of CNT
-   consecutive bits in B at or after START that are all set to
-   VALUE.
-   If there is no such group, returns BITMAP_ERROR. */
+/*Finds and returns the starting index of the first group of CNT consecutive bits in B at
+ or after START that are all set to VALUE.
+  모두 VALUE로 설정된 START 이후 B에서 CNT 연속 비트의 첫 번째 그룹의 시작 인덱스를 찾아서 반환합니다.
+   그런 그룹이 없으면 BITMAP_ERROR를 반환합니다.
+   => 주어진 비트맵에서 연속적인 비트 영역을 찾아 해당 영역의 시작 인덱스를 반환 */
 size_t
 bitmap_scan (const struct bitmap *b, size_t start, size_t cnt, bool value) {
 	ASSERT (b != NULL);
