@@ -1,0 +1,40 @@
+Kernel command line: -q -f put mmap-write run mmap-write
+0 ~ 9fc00 1
+100000 ~ 13e0000 1
+Pintos booting with: 
+	base_mem: 0x0 ~ 0x9fc00 (Usable: 639 kB)
+	ext_mem: 0x100000 ~ 0x13e0000 (Usable: 19,328 kB)
+Calibrating timer...  52,377,600 loops/s.
+hd0:0: detected 329 sector (164 kB) disk, model "QEMU HARDDISK", serial "QM00001"
+hd0:1: detected 20,160 sector (9 MB) disk, model "QEMU HARDDISK", serial "QM00002"
+hd1:0: detected 107 sector (53 kB) disk, model "QEMU HARDDISK", serial "QM00003"
+hd1:1: detected 8,064 sector (3 MB) disk, model "QEMU HARDDISK", serial "QM00004"
+Formatting file system...done.
+Boot complete.
+Putting 'mmap-write' into the file system...
+Executing 'mmap-write':
+(mmap-write) begin
+(mmap-write) create "sample.txt"
+(mmap-write) open "sample.txt"
+(mmap-write) mmap "sample.txt"
+(mmap-write) compare read data against written data
+(mmap-write) end
+mmap-write: exit(0)
+Kernel PANIC at ../../threads/synch.c:275 in lock_acquire(): assertion `!lock_held_by_current_thread(lock)' failed.
+Call stack: 0x8004217e15 0x800420a334 0x8004221b83 0x80042213bf 0x80042212e9 0x8004221238 0x800421cce5 0x8004208c70 0x800420908e 0x800421411b 0x80042136dd 0x800421ff99 0x800421ee75 0x8004221f0d 0x80042216a8 0x800421be50 0x80042071dc 0x800421d216 0x800421cf06 0x800421cd8d 0x400e25 0Interrupt 0x0d (#GP General Protection Exception) at rip=8004214e4f
+ cr2=0000000010000000 error=               0
+rax 00008004245f6000 rbx 0000800424521000 rcx 00000080040b8000 rdx 00000000000003d4
+rsp 0000008004245a40 rbp 0000008004245a50 rsi 000000000000aa0f rdi 0000000000000000
+rip 0000008004214e4f r8 0000008004245958  r9 000000800421b28e r10 0000000000000000
+r11 0000000000000206 r12 000000800421cea6 r13 0000800424500000 r14 0000800422adf800
+r15 0000000000000000 rflags 00000006
+es: 0010 ds: 0010 cs: 0008 ss: 0010
+Kernel PANIC recursion at ../../userprog/exception.c:100 in kill().
+Timer: 94 ticks
+Thread: 36 idle ticks, 41 kernel ticks, 17 user ticks
+hd0:0: 0 reads, 0 writes
+hd0:1: 121 reads, 258 writes
+hd1:0: 107 reads, 0 writes
+hd1:1: 0 reads, 0 writes
+Console: 2054 characters output
+Key

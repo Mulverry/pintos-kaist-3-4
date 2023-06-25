@@ -1,0 +1,17 @@
+FAIL
+Kernel panic in run: PANIC at ../../lib/kernel/bitmap.c:272 in bitmap_scan(): assertion `b != NULL' failed.
+Call stack: 0x8004217e15 0x8004219fdd 0x8004221a04 0x8004220f92 0x8004220fe8 0x8004221313 0x80042212e9 0x8004221238 0x800421cce5 0x8004208c70 0x800420908e 0x400cac 0x400cf5
+Translation of call stack:
+0x0000008004217e15: debug_panic (lib/kernel/debug.c:32)
+0x0000008004219fdd: bitmap_scan (lib/kernel/bitmap.c:273)
+0x0000008004221a04: anon_swap_out (vm/anon.c:61)
+0x0000008004220f92: vm_evict_frame (vm/vm.c:141)
+0x0000008004220fe8: vm_get_frame (vm/vm.c:155)
+0x0000008004221313: vm_do_claim_page (vm/vm.c:232)
+0x00000080042212e9: vm_claim_page (vm/vm.c:226)
+0x0000008004221238: vm_try_handle_fault (vm/vm.c:206)
+0x000000800421cce5: page_fault (userprog/exception.c:149)
+0x0000008004208c70: intr_handler (threads/interrupt.c:352)
+0x000000800420908e: intr_entry (threads/intr-stubs.o:?)
+0x0000000000400cac: (unknown)
+0x0000000000400cf5: (unknown)

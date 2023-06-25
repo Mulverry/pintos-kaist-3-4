@@ -72,8 +72,6 @@ bool vm_alloc_page_with_initializer(enum vm_type type, void *upage, bool writabl
 			case VM_FILE:
 				uninit_new(page, upage, init, type, aux, file_backed_initializer);
 				break;
-			case default:
-				break;
 		}
 		page->writable = writable;
 		return spt_insert_page(spt, page);

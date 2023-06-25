@@ -1,0 +1,25 @@
+FAIL
+Kernel panic in run: PANIC at ../../threads/synch.c:275 in lock_acquire(): assertion `!lock_held_by_current_thread(lock)' failed.
+Call stack: 0x8004217e15 0x800420a334 0x8004221b83 0x80042213bf 0x80042212e9 0x8004221238 0x800421cce5 0x8004208c70 0x800420908e 0x800421411b 0x80042136dd 0x800421ff99 0x800421ee75 0x8004221f0d 0x80042216a8 0x800421be50 0x80042071dc 0x800421d216 0x800421cf06 0x800421cd8d 0x401104
+Translation of call stack:
+0x0000008004217e15: debug_panic (lib/kernel/debug.c:32)
+0x000000800420a334: lock_acquire (threads/synch.c:277)
+0x0000008004221b83: file_backed_swap_in (vm/file.c:48)
+0x00000080042213bf: vm_do_claim_page (vm/vm.c:244)
+0x00000080042212e9: vm_claim_page (vm/vm.c:226)
+0x0000008004221238: vm_try_handle_fault (vm/vm.c:206)
+0x000000800421cce5: page_fault (userprog/exception.c:149)
+0x0000008004208c70: intr_handler (threads/interrupt.c:352)
+0x000000800420908e: intr_entry (threads/intr-stubs.o:?)
+0x000000800421411b: output_sector (devices/disk.c:447)
+0x00000080042136dd: disk_write (devices/disk.c:248)
+0x000000800421ff99: inode_write_at (filesys/inode.c:260)
+0x000000800421ee75: file_write (filesys/file.c:98)
+0x0000008004221f0d: do_munmap (vm/file.c:119)
+0x00000080042216a8: iter_munmap (vm/vm.c:311)
+0x000000800421be50: process_exit (userprog/process.c:382)
+0x00000080042071dc: thread_exit (threads/thread.c:318)
+0x000000800421d216: create (userprog/syscall.c:165)
+0x000000800421cf06: syscall_handler (userprog/syscall.c:94)
+0x000000800421cd8d: no_sti (userprog/syscall-entry.o:?)
+0x0000000000401104: (unknown)

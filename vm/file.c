@@ -1,6 +1,7 @@
 /* file.c: Implementation of memory backed file object (mmaped object). */
 
 #include "vm/vm.h"
+#include "devices/disk.h"
 #include "userprog/process.h"
 #include "userprog/syscall.h"
 #include "threads/mmu.h"
@@ -11,6 +12,9 @@ static bool file_backed_swap_out (struct page *page);
 static void file_backed_destroy (struct page *page);
 void *do_mmap (void *addr, size_t length, int writable, struct file *file, off_t offset);
 void do_munmap(void *addr);
+
+static struct disk *swap_disk;
+struct bitmap *swap_table;
 
 /* DO NOT MODIFY this struct */
 static const struct page_operations file_ops = {
@@ -38,12 +42,30 @@ file_backed_initializer (struct page *page, enum vm_type type, void *kva) {
 static bool
 file_backed_swap_in (struct page *page, void *kva) {
 	struct file_page *file_page UNUSED = &page->file;
+	if (file_page == NULL) return false;
+	struct segment *seg = page->uninit.aux;
+	lock_acquire(&filesys_lock);
+	file_seek(seg->file, seg->ofs);
+	file_read(seg->file, page->va, seg->page_read_bytes);
+	lock_release(&filesys_lock);
+	return true;
 }
 
 /* Swap out the page by writeback contents to the file. */
 static bool
 file_backed_swap_out (struct page *page) {
 	struct file_page *file_page UNUSED = &page->file;
+	if (file_page == NULL) return false;
+	struct segment *seg = page->uninit.aux;
+
+	if (pml4_is_dirty(thread_current()->pml4, page->va)){
+		lock_acquire(&filesys_lock);
+		file_seek(seg->file, seg->ofs);
+		file_write(seg->file, page->va, seg->page_read_bytes);
+		lock_release(&filesys_lock);
+		pml4_set_dirty(thread_current()->pml4, page->va, false);
+	}
+	return true;
 }
 
 /* Destory the file backed page. PAGE will be freed by the caller. */
